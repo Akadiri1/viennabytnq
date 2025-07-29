@@ -1,4 +1,8 @@
-
+<?php           // Fetch video and text from database
+$homeVideo = selectContent($conn, 'home_video', ['visibility' => 'show']);
+$videoSrc = $homeVideo[0]['video_url'];
+$videoText = $homeVideo[0]['video_text'];
+?>
 
 
 <html class="js" lang="en">
@@ -7,14 +11,14 @@
     <meta name="theme-color" content="#aaaaaa">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
-    <link rel="canonical" href="index.html">
-    <link rel="prefetch" as="document" href="index.html">
+    <link rel="canonical" href="/home">
+    <link rel="prefetch" as="document" href="/home">
     <title>
       VIENNA-RTW Exclusive Collections | Stylish
     </title>
     <meta name="description" content="Discover VIENNA-RTW Fashion's curated collection of stylish female clothing. From chic everyday wear to elegant occasion outfits, shop quality designs that empower and inspire women.">
-    <link rel="shortcut icon" type="image/png" href="images/viennabg.png">
-    <link rel="apple-touch-icon-precomposed" type="image/png" sizes="152x152" href="images/viennabg.png">
+    <link rel="shortcut icon" type="image/png" href="<?=$logo_directory?>">
+    <link rel="apple-touch-icon-precomposed" type="image/png" sizes="152x152" href="<?=$logo_directory?>">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#2d2a6e">
     <meta name="google-site-verification" content="TQoC3V9UXCYDRDAHG11QtYDYdzs6nJQdcblEpCL__WI">
@@ -44,8 +48,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <!-- END app block -->
-    <meta property="og:image" content="images/viennabg.png">
-    <meta property="og:image:secure_url" content="images/viennabg.png">
+    <meta property="og:image" content="<?=$logo_directory?>">
+    <meta property="og:image:secure_url" content="<?=$logo_directory?>">
     <meta property="og:image:width" content="3016">
     <meta property="og:image:height" content="4528">
     <!-- <link href="https://monorail-edge.shopifysvc.com/" rel="dns-prefetch"> -->
@@ -621,9 +625,9 @@
 <div id="preloader">
     <div class="preloader-content">
         <!-- Make sure the path to your logo is correct -->
-        <img src="images/viennabg.png" alt="VIENNA Logo" class="preloader-logo">
+        <img src="<?=$logo_directory?>" alt="VIENNA Logo" class="preloader-logo">
         <br>
-        <div class="preloader-text">VIENNABYTNQ</div>
+        <div class="preloader-text"><?=$site_name?></div>
     </div>
 </div>
 
@@ -793,10 +797,10 @@ body.preloading {
                     </span>
                   </div> -->
                 </div>
-                <a href="index.html" aria-label="VIENNA-RTW US" class="logo-slogan">
+                <a href="/home" aria-label="VIENNA-RTW US" class="logo-slogan">
                     <!-- We removed the incorrect "color" style and added the CSS filter -->
                     <img 
-                      src="images/viennabg.png" 
+                      src="<?=$logo_directory?>" 
                       alt="VIENNA-RTW US" 
                       style="max-width: 140px; height: auto; filter: brightness(0) invert(1);">
                     <span>VIENNABYTNQ</span>
@@ -967,7 +971,7 @@ body.preloading {
               <div class="video-wrapper">
                 <video autoplay="" muted="" loop="" playsinline="" preload="auto" class="background-video" poster="Liquid%20error%20(sections/video-background%20line%20169)_%20invalid%20url%20input.html" onerror="this.style.display='none'; document.querySelector('.fallback-image').style.display = 'block';">
                   <!-- <source src="https://cdn.shopify.com/videos/c/o/v/fa9a63b71e474a97bf6587a86a849e25.mp4" type="video/mp4"> -->
-                  <source src="images/vienna.mp4" type="video/mp4">
+                  <source src="<?=$videoSrc;?>" type="video/mp4">
 
                   Your browser does not support the video tag.
                 </video>
@@ -978,7 +982,7 @@ body.preloading {
                 <div class="overlay" style="background-color: #000000; opacity: 0.3"></div>
                 <div class="content" style="color: #ffffff">
                   <h1 class="heading-text fade-in" style="color: #ffffff; font-size: 48px">
-                    SPRING/SUMMER <br> VIENNA 2025
+                    <?=$videoText;?>
                   </h1>
                   <!-- <img src="images/vienna.jpg" alt="Overlay Subtitle" class="overlay-subtitle-image fade-in" style="width: 60%"> -->
                 </div>
@@ -1090,146 +1094,49 @@ body.preloading {
               <div class="full-width">
                 <div class="row">
                   <!-- SS25 Collection -->
-                  <div id="bk_collection_REVHyG"
-                    class="laber_banner cat_grid_item cat_space_item cat_grid_item_1 col-md-4 col-12 pad"
-                    style="margin-bottom:20px;">
-                    <div class="cat_grid_item__content">
-                      <a href="shop.html" class="cat_grid_item__link">
-                        <div data-image-effect="" class="pr_lazy_img main-img laber_bg_lz lazyloaded"
-                          style="padding-top: 150%; background-image: url('images/IMG_6354b316.jpg');">
-                        </div>
-                        <span class="icon">
-                          <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                              <style>
-                                .cls-1 {
-                                  fill: none;
-                                }
-                              </style>
-                            </defs>
-                            <g data-name="Layer 2" id="Layer_2">
-                              <path
-                                d="M19,26a1,1,0,0,1-.71-.29,1,1,0,0,1,0-1.42L26.59,16l-8.3-8.29a1,1,0,0,1,1.42-1.42l9,9a1,1,0,0,1,0,1.42l-9,9A1,1,0,0,1,19,26Z">
-                              </path>
-                              <path d="M28,17H4a1,1,0,0,1,0-2H28a1,1,0,0,1,0,2Z"></path>
-                            </g>
-                            <g id="frame">
-                              <rect class="cls-1" height="32" width="32"></rect>
-                            </g>
-                          </svg>
-                        </span>
-                      </a>
-                      <div class="cat_grid_item__wrapper text_center v_bottom h_center">
-                        <div class="cat_grid_item__title style_1">
-                          <a href="shop.html" style="color: white;">
-                            Shop Now
-                            <span class="cat_grid_item__count"></span>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- New In Collection -->
-                  <div id="bk_collection_8pnrNC"
-                    class="laber_banner cat_grid_item cat_space_item cat_grid_item_2 col-md-4 col-12 pad"
-                    style="margin-bottom:20px;">
-                    <div class="cat_grid_item__content">
-                      <a href="shop.html" class="cat_grid_item__link">
-                        <div data-image-effect="" class="pr_lazy_img main-img laber_bg_lz lazyloaded"
-                          data-id="36899385344227"
-                          data-bgset="//binwa.co/cdn/shop/files/IMG_6360_180x.jpg?v=1751379599 180w, //binwa.co/cdn/shop/files/IMG_6360_360x.jpg?v=1751379599 360w, //binwa.co/cdn/shop/files/IMG_6360_540x.jpg?v=1751379599 540w, //binwa.co/cdn/shop/files/IMG_6360_720x.jpg?v=1751379599 720w, //binwa.co/cdn/shop/files/IMG_6360_900x.jpg?v=1751379599 900w, //binwa.co/cdn/shop/files/IMG_6360_1080x.jpg?v=1751379599 1080w"
-                          data-parent-fit="width" data-wiis="" data-ratio="0.6666666666666666"
-                          style="padding-top: 150%; background-image: url('https://binwa.co/cdn/shop/files/IMG_6360_720x.jpg?v=1751379599');">
-                          <picture style="display: none;">
-                            <source data-srcset="//binwa.co/cdn/shop/files/IMG_6360_180x.jpg?v=1751379599 180w, //binwa.co/cdn/shop/files/IMG_6360_360x.jpg?v=1751379599 360w, //binwa.co/cdn/shop/files/IMG_6360_540x.jpg?v=1751379599 540w, //binwa.co/cdn/shop/files/IMG_6360_720x.jpg?v=1751379599 720w, //binwa.co/cdn/shop/files/IMG_6360_900x.jpg?v=1751379599 900w, //binwa.co/cdn/shop/files/IMG_6360_1080x.jpg?v=1751379599 1080w"
-                              sizes="335px"
-                              srcset="//binwa.co/cdn/shop/files/IMG_6360_180x.jpg?v=1751379599 180w, //binwa.co/cdn/shop/files/IMG_6360_360x.jpg?v=1751379599 360w, //binwa.co/cdn/shop/files/IMG_6360_540x.jpg?v=1751379599 540w, //binwa.co/cdn/shop/files/IMG_6360_720x.jpg?v=1751379599 720w, //binwa.co/cdn/shop/files/IMG_6360_900x.jpg?v=1751379599 900w, //binwa.co/cdn/shop/files/IMG_6360_1080x.jpg?v=1751379599 1080w">
-                            <img alt="" class="lazyautosizes lazyloaded" data-sizes="auto" data-ratio="0.6666666666666666"
-                              sizes="335px">
-                          </picture>
-                        </div>
-                        <span class="icon">
-                          <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                              <style>
-                                .cls-1 {
-                                  fill: none;
-                                }
-                              </style>
-                            </defs>
-                            <g data-name="Layer 2" id="Layer_2">
-                              <path
-                                d="M19,26a1,1,0,0,1-.71-.29,1,1,0,0,1,0-1.42L26.59,16l-8.3-8.29a1,1,0,0,1,1.42-1.42l9,9a1,1,0,0,1,0,1.42l-9,9A1,1,0,0,1,19,26Z">
-                              </path>
-                              <path d="M28,17H4a1,1,0,0,1,0-2H28a1,1,0,0,1,0,2Z"></path>
-                            </g>
-                            <g id="frame">
-                              <rect class="cls-1" height="32" width="32"></rect>
-                            </g>
-                          </svg>
-                        </span>
-                      </a>
-                      <div class="cat_grid_item__wrapper text_center v_bottom h_center">
-                        <div class="cat_grid_item__title style_1">
-                          <a href="shop.html" style="color: white;">
-                            Shop Now
-                            <span class="cat_grid_item__count"></span>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- Trending Collection -->
-                  <div id="bk_collection_Vd9mBg"
-                    class="laber_banner cat_grid_item cat_space_item cat_grid_item_3 col-md-4 col-12 pad"
-                    style="margin-bottom:20px;">
-                    <div class="cat_grid_item__content">
-                      <a href="shop.html" class="cat_grid_item__link">
-                        <div data-image-effect="" class="pr_lazy_img main-img laber_bg_lz lazyloaded"
-                          data-id="36901855625443"
-                          data-bgset="//binwa.co/cdn/shop/files/IMG_6348_180x.jpg?v=1751403004 180w, //binwa.co/cdn/shop/files/IMG_6348_360x.jpg?v=1751403004 360w, //binwa.co/cdn/shop/files/IMG_6348_540x.jpg?v=1751403004 540w, //binwa.co/cdn/shop/files/IMG_6348_720x.jpg?v=1751403004 720w, //binwa.co/cdn/shop/files/IMG_6348_900x.jpg?v=1751403004 900w, //binwa.co/cdn/shop/files/IMG_6348_1080x.jpg?v=1751403004 1080w"
-                          data-parent-fit="width" data-wiis="" data-ratio="0.6666666666666666"
-                          style="padding-top: 150%; background-image: url('https://binwa.co/cdn/shop/files/IMG_6348_720x.jpg?v=1751403004');">
-                          <picture style="display: none;">
-                            <source data-srcset="//binwa.co/cdn/shop/files/IMG_6348_180x.jpg?v=1751403004 180w, //binwa.co/cdn/shop/files/IMG_6348_360x.jpg?v=1751403004 360w, //binwa.co/cdn/shop/files/IMG_6348_540x.jpg?v=1751403004 540w, //binwa.co/cdn/shop/files/IMG_6348_720x.jpg?v=1751403004 720w, //binwa.co/cdn/shop/files/IMG_6348_900x.jpg?v=1751403004 900w, //binwa.co/cdn/shop/files/IMG_6348_1080x.jpg?v=1751403004 1080w"
-                              sizes="335px"
-                              srcset="//binwa.co/cdn/shop/files/IMG_6348_180x.jpg?v=1751403004 180w, //binwa.co/cdn/shop/files/IMG_6348_360x.jpg?v=1751403004 360w, //binwa.co/cdn/shop/files/IMG_6348_540x.jpg?v=1751403004 540w, //binwa.co/cdn/shop/files/IMG_6348_720x.jpg?v=1751403004 720w, //binwa.co/cdn/shop/files/IMG_6348_900x.jpg?v=1751403004 900w, //binwa.co/cdn/shop/files/IMG_6348_1080x.jpg?v=1751403004 1080w">
-                            <img alt="" class="lazyautosizes lazyloaded" data-sizes="auto" data-ratio="0.6666666666666666"
-                              sizes="335px">
-                          </picture>
-                        </div>
-                        <span class="icon">
-                          <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                              <style>
-                                .cls-1 {
-                                  fill: none;
-                                }
-                              </style>
-                            </defs>
-                            <g data-name="Layer 2" id="Layer_2">
-                              <path
-                                d="M19,26a1,1,0,0,1-.71-.29,1,1,0,0,1,0-1.42L26.59,16l-8.3-8.29a1,1,0,0,1,1.42-1.42l9,9a1,1,0,0,1,0,1.42l-9,9A1,1,0,0,1,19,26Z">
-                              </path>
-                              <path d="M28,17H4a1,1,0,0,1,0-2H28a1,1,0,0,1,0,2Z"></path>
-                            </g>
-                            <g id="frame">
-                              <rect class="cls-1" height="32" width="32"></rect>
-                            </g>
-                          </svg>
-                        </span>
-                      </a>
-                      <div class="cat_grid_item__wrapper text_center v_bottom h_center">
-                        <div class="cat_grid_item__title style_1">
-                          <a href="shop.html" style="color: white;">
-                            Shop Now
-                            <span class="cat_grid_item__count"></span>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- End Trending Collection -->
+                   <?php foreach ($homeProduct as $key => $value):?>
+                      
+                       <div id="bk_collection_REVHyG"
+                         class="laber_banner cat_grid_item cat_space_item cat_grid_item_1 col-md-4 col-12 pad"
+                         style="margin-bottom:20px;">
+                         <div class="cat_grid_item__content">
+                           <a href="<?= $value['input_link'] ?>" class="cat_grid_item__link">
+                             <div data-image-effect="" class="pr_lazy_img main-img laber_bg_lz lazyloaded"
+                               style="padding-top: 150%; background-image: url('<?= $value['input_image'] ?>');">
+                             </div>
+                             <span class="icon">
+                               <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                 <defs>
+                                   <style>
+                                     .cls-1 {
+                                       fill: none;
+                                     }
+                                   </style>
+                                 </defs>
+                                 <g data-name="Layer 2" id="Layer_2">
+                                   <path
+                                     d="M19,26a1,1,0,0,1-.71-.29,1,1,0,0,1,0-1.42L26.59,16l-8.3-8.29a1,1,0,0,1,1.42-1.42l9,9a1,1,0,0,1,0,1.42l-9,9A1,1,0,0,1,19,26Z">
+                                   </path>
+                                   <path d="M28,17H4a1,1,0,0,1,0-2H28a1,1,0,0,1,0,2Z"></path>
+                                 </g>
+                                 <g id="frame">
+                                   <rect class="cls-1" height="32" width="32"></rect>
+                                 </g>
+                               </svg>
+                             </span>
+                           </a>
+                           <div class="cat_grid_item__wrapper text_center v_bottom h_center">
+                             <div class="cat_grid_item__title style_1">
+                               <a href="<?= $value['input_link'] ?>" style="color: white;">
+                                 Shop Now
+                                 <span class="cat_grid_item__count"></span>
+                               </a>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                   <?php endforeach;?>
+
                 </div>
               </div>
             </section>
@@ -1254,21 +1161,18 @@ body.preloading {
                   <div class="footer-iteam col-lg-12 col-md-6 col-12 flex h_center text_center">
                     <aside id="block_logo_footer_G84Lt7" class="widget widget_text">
                       <div class="logo-footer">
-                        <a href="index.html" class="site-header__logo-image">
-                          <img src="images/viennabg.png" alt="" style="max-width: 125px; width: auto; height: auto">
+                        <a href="/home" class="site-header__logo-image">
+                          <img src="<?=$logo_directory?>" alt="" style="max-width: 125px; width: auto; height: auto">
                         </a>
                       </div>
                       <div class="laber-social-link socials clearfix">
                         <ul class="list-socials">
-                          <li class="instagram">
-                            <a target="_blank" href="" title="Instargram"><i class="fa-brands fa-instagram"></i></a>
-                          </li>
-                          <li class="tiktok">
-                            <a target="_blank" href="" title="TikTok"><i class="fa-brands fa-tiktok"></i></a>
-                          </li>
-                          <li class="facebook">
-                            <a target="_blank" href="" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
-                          </li>
+                        <?php foreach ($socialLinks as $key => $value):?>
+                            <li class="instagram">
+                              <a target="_blank" href="<?=$value['input_link']?>" title="<?=$value['input_name']?>"><i class="<?=$value['input_icon']?>"></i></a>
+                            </li>
+                        <?php endforeach;?>
+
                         </ul>
                       </div>
                     </aside>
@@ -1365,7 +1269,7 @@ body.preloading {
                               font-size: 12px !important;
                               line-height: 18px;
                             ">
-                            ©2025 VIENNA-RTW FASHION LTD. All rights reserved.
+                            ©<?=date('Y')?> <?=$site_name?> FASHION LTD. All rights reserved.
                             <a target="_blank" href="" style="
                                 font-size: 12px;
                                 line-height: 18px;

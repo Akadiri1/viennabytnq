@@ -70,6 +70,18 @@ if (count($uri) > 2) {
     include APP_PATH."/views/home.php";
     break;
 
+    case 'shop':
+    include APP_PATH."/views/shop.php";
+    break;
+
+    case 'pagination':
+    include APP_PATH."/views/includes/ajax/pagination.php";
+    break;
+
+    case 'pagination?'.$query_string:
+    include APP_PATH."/views/includes/ajax/pagination.php";
+    break;
+
     case 'index':
     include APP_PATH."/views/home.php";
     break;

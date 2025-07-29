@@ -24,7 +24,9 @@ require APP_PATH."/auth/auth_controller/controller.php";
 // require APP_PATH."/routes/router.php";
 
 $websiteInfo = selectContent($conn, "read_website_info", ['visibility' => 'show']);
-$officeHours = selectContent($conn, "panel_office_hours", ['visibility' => 'show']);
+$socialLinks = selectContent($conn, "social_links", ['visibility' => 'show']);
+$homeProduct = selectContent($conn, "home_product", ['visibility' => 'show']);
+// $officeHours = selectContent($conn, "panel_office_hours", ['visibility' => 'show']);
 // $websiteStyle = selectContent($conn, "website_status", ['visibility' => 'show']);
 
 $_SESSION['color'] = "green";
