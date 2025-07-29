@@ -1,0 +1,7 @@
+Vagrantfile
+/www/phpmyadmin
+.vagrant/
+/**www/uploads/**/
+.env/config.php
+ngrok.exe
+.htaccess

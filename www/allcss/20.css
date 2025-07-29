@@ -1,0 +1,270 @@
+.sc-menu-mobile {
+    display: block
+}
+
+.js-menu-mobile-content {
+    left: 0;
+    -webkit-transform: translateX(-100%);
+    -ms-transform: translateX(-100%);
+    -o-transform: translateX(-100%);
+    transform: translate(-100%)
+}
+
+.open_menu .js-menu-mobile-content {
+    -webkit-transform: translateX(0);
+    -ms-transform: translateX(0);
+    -o-transform: translateX(0);
+    transform: translate(0)
+}
+
+.box-menu-moible {
+    -webkit-transition: all .2s ease-in-out 0s;
+    -o-transition: all .2s ease-in-out 0s;
+    transition: all .2s ease-in-out 0s;
+    z-index: 99999;
+    top: 0;
+    min-width: 350px;
+    width: 300px;
+    background: #fff;
+    position: fixed;
+    padding: 30px;
+    height: 100%;
+    overflow: auto!important;
+    overflow-x: hidden!important;
+    background-color: var(--color-bg-menu-mobile)
+}
+
+.box-menu-moible .logo-mobile {
+    text-align: center;
+    margin-bottom: 20px
+}
+
+.box-menu-moible .logo-mobile a {
+    text-align: center;
+    color: var(--color-text-menu-mobile);
+    text-transform: uppercase;
+    font-size: 25px;
+    line-height: 1;
+    font-weight: 600
+}
+
+.box-menu-moible .tab_mobile {
+    display: flex;
+    margin: -15px -15px 15px;
+    background: var(--color-main)
+}
+
+.box-menu-moible .tab_mobile h3 {
+    width: 50%;
+    padding: 0 15px;
+    margin: 0;
+    line-height: 45px;
+    background: var(--color-main);
+    color: #fff;
+    font-size: 14px;
+    display: inline-flex;
+    justify-content: center;
+    align-content: center;
+    font-weight: 500;
+    text-transform: uppercase;
+    cursor: pointer
+}
+
+.box-menu-moible .tab_mobile h3.active {
+    background-color: var(--color-btn-hover);
+    color: #fff
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item {
+    position: relative;
+    color: var(--color-text-menu-mobile);
+    border-bottom: 1px dashed var(--color-bd-menu-mobile)
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item>a {
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    height: 50px;
+    color: var(--color-text-menu-mobile);
+    font-weight: 500;
+    text-transform: uppercase;
+    gap: 5px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item>a:hover {
+    color: var(--color-text-menu-mobile-hover)
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .title-customer a {
+    color: var(--color-text-menu-mobile);
+    text-decoration: underline
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item a .label {
+    margin-left: 5px;
+    font-size: 10px;
+    text-transform: none;
+    padding: 0 5px;
+    border-radius: 2px;
+    color: #fff;
+    transform: translateY(-5px);
+    -webkit-transform: translate(0,-5px);
+    -moz-transform: translate(0,-5px);
+    -o-transform: translate(0,-5px);
+    -ms-transform: translate(0,-5px);
+    font-weight: 400
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .menu_contact_title .icon,.box-menu-moible .menu-mobile .laber_mb_menu .menu-item a .icon {
+    font-size: 16px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu3,.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu2,.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu {
+    padding-left: 0
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .collapse,.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .expand {
+    font-size: 0;
+    position: absolute;
+    right: 0;
+    width: 45px;
+    height: 50px;
+    line-height: 50px;
+    text-align: center;
+    border-radius: 3px;
+    top: 0;
+    cursor: pointer;
+    font-family: icon-dukamarket!important;
+    opacity: .5
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item:hover .collapse,.box-menu-moible .menu-mobile .laber_mb_menu .menu-item:hover .expand {
+    opacity: 1
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .collapse:before {
+    content: "\e94f";
+    font-size: 16px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .expand:before {
+    content: "\e952";
+    font-size: 16px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu {
+    padding: 0 0 10px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu li {
+    border: none
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu li a {
+    height: 35px;
+    padding-left: 15px;
+    text-transform: none;
+    font-weight: 400;
+    font-size: 14px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu li.active a,.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu li a:hover {
+    color: var(--color-text-menu-mobile-hover)
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu2 a {
+    padding-left: 45px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .sub-menu3 a {
+    padding-left: 65px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .menu_contact_title {
+    margin: 0;
+    height: 50px;
+    display: flex;
+    align-items: center
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .menu_contact_text {
+    padding-left: 15px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .menu_contact_text p {
+    margin: 0 0 10px;
+    display: flex;
+    flex-direction: column
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item .menu_contact_text p .title {
+    font-size: 14px
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item#item_search .title_search {
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 18px;
+    text-align: center;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    color: var(--color-text-menu-mobile)
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item#item_search {
+    margin-bottom: 20px;
+    border: none
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item#item_search a {
+    color: #999;
+    text-transform: none;
+    font-size: 14px;
+    font-weight: 400;
+    background: #fff;
+    padding: 0 20px;
+    position: relative;
+    border-radius: 50px;
+    height: 45px;
+    line-height: 45px;
+    box-shadow: 0 0 20px #0000000d
+}
+
+.box-menu-moible .menu-mobile .laber_mb_menu .menu-item#item_search a .icon {
+    position: absolute;
+    top: 0;
+    right: 15px;
+    margin: 0;
+    font-size: 18px;
+    color: #222
+}
+
+.box-menu-moible .close-sidebar-btn {
+    text-align: center;
+    padding: 0;
+    opacity: 1;
+    cursor: pointer;
+    -webkit-transition: all .2s ease-in-out 0s;
+    -o-transition: all .2s ease-in-out 0s;
+    transition: all .2s ease-in-out 0s;
+    font-weight: 600;
+    font-size: 13px;
+    margin: -30px -30px 30px;
+    height: 45px;
+    color: var(--color-text-menu-mobile);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 19px;
+    position: static;
+    width: auto;
+    border-radius: 0
+}
+
+.box-menu-moible .close-sidebar-btn i {
+    font-size: 19px
+}
+
+/*# sourceMappingURL=/cdn/shop/t/2/assets/mobile_menu.css.map?v=8275712316128209091750594676 */
