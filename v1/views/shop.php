@@ -174,7 +174,7 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
                     $sizes = $sizeStmt->fetchAll(PDO::FETCH_COLUMN);
                     ?>
                     <div class="product-card" data-price="<?= htmlspecialchars($product['price']) ?>">
-                        <a href="shop-details.php?id=<?= urlencode($product['id']) ?>" class="group block">
+                        <a href="shopdetail?id=<?= urlencode($product['id']) ?>&name=<?= urlencode($product['name']) ?>&t=<?= time() ?>" class="group block">
                             <div class="relative w-full overflow-hidden">
                                 <div class="aspect-[9/16]">
                                     <img src="<?= htmlspecialchars($product['image_one']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100 group-hover:opacity-0">

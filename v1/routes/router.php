@@ -25,18 +25,17 @@ if (count($uri) > 2) {
 
 
   switch ($uri[1]."/".$uri[2]) {
-
-
-    // case 'dashboard/edit-campaign?'.$query_string:
-    // include APP_PATH."/views/editCampaign.php";
-    // die();
-    // break;
-
+    // ...existing code...
     case "website/$uri[2]":
-    include APP_PATH."/views/viewWebsite.php";
-    die();
-    break;
+      include APP_PATH."/views/viewWebsite.php";
+      die();
+      break;
 
+    // Route for shopdetails/{id}/{name}/{hash}
+    case "shopdetail/$uri[2]":
+      include APP_PATH."/views/shop.php";
+      die();
+      break;
   }
 
 
