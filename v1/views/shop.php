@@ -1,5 +1,6 @@
 <?php 
 $panelProducts = array_slice(selectContent($conn, "panel_products", ['visibility' => 'show']), 0, 50);
+$productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' => 'show']);
 ?>
 
 <!DOCTYPE html>
@@ -114,7 +115,7 @@ $panelProducts = array_slice(selectContent($conn, "panel_products", ['visibility
     </header>
 
     <!-- NEW: HERO/BREADCRUMB IMAGE SECTION -->
-    <section class="relative h-64 md:h-80 bg-cover bg-center" style="background-image: url('images/IMG_638082ef.jpg');">
+    <section class="relative h-64 md:h-80 bg-cover bg-center" style="background-image: url('<?= $productBreadcrumb[0]['input_image'] ?>');">
         <div class="absolute inset-0 bg-black/30"></div>
         <div class="relative z-10 h-full flex flex-col justify-center items-center text-white text-center px-4">
             <nav class="text-sm font-light tracking-wider" aria-label="Breadcrumb">
@@ -128,7 +129,7 @@ $panelProducts = array_slice(selectContent($conn, "panel_products", ['visibility
                     </li>
                 </ol>
             </nav>
-            <h1 class="text-5xl md:text-6xl font-serif font-semibold mt-4">All Products</h1>
+            <h1 class="text-5xl md:text-6xl font-serif font-semibold mt-4"><?= $productBreadcrumb[0]['input_title'] ?></h1>
         </div>
     </section>
 
@@ -212,7 +213,7 @@ $panelProducts = array_slice(selectContent($conn, "panel_products", ['visibility
     <!-- FOOTER -->
     <footer class="bg-white border-t border-gray-200">
         <div class="bg-gray-50 text-center py-4 text-brand-gray text-xs">
-            <p>© 2025 <?=$site_name?>. All Rights Reserved.</p>
+            <p>© <?=date('Y')?> <?=$site_name?>. All Rights Reserved.</p>
         </div>
     </footer>
 
