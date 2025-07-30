@@ -53,7 +53,7 @@ if ($products) {
         $sizes = $sizeStmt->fetchAll(PDO::FETCH_COLUMN);
         // Card HTML
         $productsHtml .= '<div class="product-card" data-price="'.htmlspecialchars($product['price']).'">';
-        $productsHtml .= '<a href="shop-details.php?id='.urlencode($product['id']).'" class="group block">';
+        $productsHtml .= '<a href="shopdetail?id='.urlencode($product['id']).'&name='.urlencode($product['name']).'&t='.time().'" class="group block">';
         $productsHtml .= '<div class="relative w-full overflow-hidden"><div class="aspect-[9/16]">';
         $productsHtml .= '<img src="'.htmlspecialchars($product['image_one']).'" alt="'.htmlspecialchars($product['name']).'" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100 group-hover:opacity-0">';
         $productsHtml .= '<img src="'.htmlspecialchars($product['image_two']).'" alt="'.htmlspecialchars($product['name']).' Hover" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-100">';
