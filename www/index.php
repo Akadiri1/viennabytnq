@@ -9,6 +9,7 @@ if (!isset($_COOKIE[$cookie_name])) {
     $cartToken = $_COOKIE[$cookie_name];
 }
 header('P3P: CP="CAO PSA OUR"');
+// --- END OF CART TOKEN LOGIC ---
 
 ob_start();
 
