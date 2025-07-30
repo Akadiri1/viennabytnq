@@ -102,6 +102,10 @@ if (count($uri) > 2) {
       include APP_PATH."/views/includes/ajax/cart.php";
       break;
 
+      case 'update-cart':
+      include APP_PATH."/views/includes/ajax/update-cart.php";
+      break;
+
     case 'pagination?'.$query_string:
       if (!headers_sent()) {
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
