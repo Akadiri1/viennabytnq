@@ -33,15 +33,16 @@ if (count($uri) > 2) {
 
     // Route for shopdetails/{id}/{name}/{hash}
     case "shopdetail/$uri[2]":
-      if (!headers_sent()) {
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-      }
       include APP_PATH."/views/shop.php";
       die();
       break;
+
+    case "shopdetail/$uri[2]":
+      include APP_PATH."/views/shop-detail.php";
+      die();
+      break;
   }
+  
 
 
 
@@ -65,6 +66,11 @@ if (count($uri) > 2) {
     case 'more-about?'.$query_string:
     include APP_PATH."/views/more-about.php";
     break;
+
+       case "shopdetail?".$query_string: 
+      include APP_PATH."/views/shop-detail.php";
+      die();
+      break;
 
     case '':
     include APP_PATH."/views/home.php";
@@ -90,6 +96,10 @@ if (count($uri) > 2) {
         header('Expires: 0');
       }
       include APP_PATH."/views/includes/ajax/pagination.php";
+      break;
+
+      case 'cart':
+      include APP_PATH."/views/includes/ajax/cart.php";
       break;
 
     case 'pagination?'.$query_string:

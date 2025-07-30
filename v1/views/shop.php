@@ -109,9 +109,9 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
                 </div>
                 <!-- MODIFIED: Removed the search icon from the header -->
                 <div class="flex-1 flex items-center justify-end space-x-4">
-                    <a href="#" class="p-2 text-brand-text hover:text-brand-gray relative">
+                    <a href="/cart" class="p-2 text-brand-text hover:text-brand-gray relative">
                         <i data-feather="shopping-bag" class="h-5 w-5"></i>
-                        <span class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-brand-red text-white text-xs flex items-center justify-center font-bold" style="font-size: 8px;">1</span>
+                        <span class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-brand-red text-white text-xs flex items-center justify-center font-bold" style="font-size: 8px;">0</span>
                     </a>
                 </div>
             </div>
@@ -177,7 +177,7 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
                     $sizeStmt->execute([$product['id']]);
                     $sizes = $sizeStmt->fetchAll(PDO::FETCH_COLUMN);
                     ?>
-                    <div class="product-card" data-price="<?= htmlspecialchars($product['price']) ?>">
+                    <div class="product-card" data-price="&#8358;<?= htmlspecialchars($product['price']) ?>">
                         <a href="shopdetail?id=<?= urlencode($product['id']) ?>&name=<?= urlencode($product['name']) ?>&t=<?= time() ?>" class="group block">
                             <div class="relative w-full overflow-hidden">
                                 <div class="aspect-[9/16]">

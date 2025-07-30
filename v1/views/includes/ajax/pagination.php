@@ -52,7 +52,7 @@ if ($products) {
         $sizeStmt->execute([$product['id']]);
         $sizes = $sizeStmt->fetchAll(PDO::FETCH_COLUMN);
         // Card HTML
-        $productsHtml .= '<div class="product-card" data-price="'.htmlspecialchars($product['price']).'">';
+        $productsHtml .= '<div class="product-card" data-price="₦'.htmlspecialchars($product['price']).'">';
         $productsHtml .= '<a href="shopdetail?id='.urlencode($product['id']).'&name='.urlencode($product['name']).'&t='.time().'" class="group block">';
         $productsHtml .= '<div class="relative w-full overflow-hidden"><div class="aspect-[9/16]">';
         $productsHtml .= '<img src="'.htmlspecialchars($product['image_one']).'" alt="'.htmlspecialchars($product['name']).'" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100 group-hover:opacity-0">';
@@ -60,7 +60,7 @@ if ($products) {
         $productsHtml .= '</div></div>';
         $productsHtml .= '<div class="pt-4 text-center">';
         $productsHtml .= '<h3 class="text-base font-medium text-brand-text">'.htmlspecialchars($product['name']).'</h3>';
-        $productsHtml .= '<p class="mt-1 text-sm text-brand-gray">$'.number_format($product['price'], 2).'</p>';
+        $productsHtml .= '<p class="mt-1 text-sm text-brand-gray">₦'.number_format($product['price'], 2).'</p>';
         $productsHtml .= '<div class="flex flex-col items-center mt-2">';
         $productsHtml .= '<div class="flex justify-center space-x-2 mb-2">';
         foreach ($colors as $color) {
