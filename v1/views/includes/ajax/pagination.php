@@ -1,4 +1,14 @@
 <?php
+$headerSent = headers_sent();
+if (!$headerSent) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+// ...existing code...
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'featured';
@@ -73,3 +83,5 @@ $response = [
     'totalPages' => $totalPages
 ];
 echo json_encode($response);
+exit;
+?>

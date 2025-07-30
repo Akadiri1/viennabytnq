@@ -33,6 +33,11 @@ if (count($uri) > 2) {
 
     // Route for shopdetails/{id}/{name}/{hash}
     case "shopdetail/$uri[2]":
+      if (!headers_sent()) {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+      }
       include APP_PATH."/views/shop.php";
       die();
       break;
@@ -70,16 +75,31 @@ if (count($uri) > 2) {
     break;
 
     case 'shop':
-    include APP_PATH."/views/shop.php";
-    break;
+      if (!headers_sent()) {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+      }
+      include APP_PATH."/views/shop.php";
+      break;
 
     case 'pagination':
-    include APP_PATH."/views/includes/ajax/pagination.php";
-    break;
+      if (!headers_sent()) {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+      }
+      include APP_PATH."/views/includes/ajax/pagination.php";
+      break;
 
     case 'pagination?'.$query_string:
-    include APP_PATH."/views/includes/ajax/pagination.php";
-    break;
+      if (!headers_sent()) {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+      }
+      include APP_PATH."/views/includes/ajax/pagination.php";
+      break;
 
     case 'index':
     include APP_PATH."/views/home.php";

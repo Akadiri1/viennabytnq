@@ -1,5 +1,8 @@
 <?php 
-$panelProducts = array_slice(selectContent($conn, "panel_products", ['visibility' => 'show']), 0, 50);
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+$panelProducts = array_slice(selectContent($conn, "panel_products", ['visibility' => 'show'], "ORDER BY id DESC"), 0, 50);
 $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' => 'show']);
 ?>
 
@@ -183,7 +186,7 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
                             </div>
                             <div class="pt-4 text-center">
                                 <h3 class="text-base font-medium text-brand-text"><?= htmlspecialchars($product['name']) ?></h3>
-                                <p class="mt-1 text-sm text-brand-gray">$<?= number_format($product['price'], 2) ?></p>
+                                <p class="mt-1 text-sm text-brand-gray">&#8358;<?= number_format($product['price'], 2) ?></p>
                                 <div class="flex flex-col items-center mt-2">
                                     <div class="flex justify-center space-x-2 mb-2">
                                         <?php foreach ($colors as $color): ?>
@@ -235,7 +238,8 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
 
             // --- Fetch Products via AJAX ---
             function fetchProducts(page = 1, search = '', sort = 'featured') {
-                fetch(`pagination?page=${page}&search=${encodeURIComponent(search)}&sort=${encodeURIComponent(sort)}`)
+                const cacheBuster = Date.now();
+                fetch(`pagination?page=${page}&search=${encodeURIComponent(search)}&sort=${encodeURIComponent(sort)}&cb=${cacheBuster}`)
                     .then(res => res.json())
                     .then(data => {
                         console.log('AJAX pagination response:', data); // DEBUG: See backend response
