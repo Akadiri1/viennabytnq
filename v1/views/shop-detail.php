@@ -94,8 +94,8 @@ $relatedProducts = $relatedStmt->fetchAll(PDO::FETCH_ASSOC);
             <nav class="text-sm font-light tracking-wider" aria-label="Breadcrumb">
                 <ol class="list-none p-0 inline-flex items-center">
                     <li class="flex items-center"><a href="/home" class="hover:underline">Home</a><i data-feather="chevron-right" class="h-4 w-4 mx-2"></i></li>
-                    <li class="flex items-center"><a href="/shop" class="hover:underline">Shop</a><i data-feather="chevron-right" class="h-4 w-4 mx-2"></i></li>
-                    <li><span><?= htmlspecialchars($singleProduct[0]['name']) ?></span></li>
+                    <li class="flex items-center"><a href="/shop" class="hover:underline">Shop</a></li>
+                    <!-- <li><span><?= htmlspecialchars($singleProduct[0]['name']) ?></span></li> -->
                 </ol>
             </nav>
             <h1 class="text-5xl md:text-6xl font-serif font-semibold mt-4"><?= htmlspecialchars($singleProduct[0]['name']) ?></h1>

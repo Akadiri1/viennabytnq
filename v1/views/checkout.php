@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const payWithPaystack = (email, amountKobo, reference) => {
         let handler = PaystackPop.setup({
-            key: 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxx', // IMPORTANT: Replace with your Paystack Public Key
+            key: 'pk_test_ded4f29b2932a767eccd8c1a145355bb09e0f34a', // IMPORTANT: Replace with your Paystack Public Key
             email: email,
             amount: amountKobo,
             currency: 'NGN',
