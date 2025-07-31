@@ -114,6 +114,18 @@ if (count($uri) > 2) {
       include APP_PATH."/views/includes/ajax/update-cart.php";
       break;
 
+       case 'place-order':
+      include APP_PATH."/views/includes/ajax/place-order.php";
+      break;
+
+       case 'verify-payment':
+      include APP_PATH."/views/includes/ajax/verify-payment.php";
+      break;
+
+      case 'apply-discount':
+      include APP_PATH."/views/includes/ajax/apply-discount.php";
+      break;
+
       case 'update-quantity':
       include APP_PATH."/views/includes/ajax/update-quantity.php";
       break;
