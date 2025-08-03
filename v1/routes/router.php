@@ -84,6 +84,14 @@ if (count($uri) > 2) {
     include APP_PATH."/views/login.php";
     break;
 
+     case 'order-view':
+    include APP_PATH."/views/order-view.php";
+    break;
+
+     case 'order-view?'.$query_string:
+    include APP_PATH."/views/order-view.php";
+    break;
+
     case 'create_users':
     include APP_PATH."/views/create_users.php";
     break;

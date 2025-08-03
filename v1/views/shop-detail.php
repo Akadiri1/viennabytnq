@@ -88,7 +88,7 @@ $relatedProducts = $relatedStmt->fetchAll(PDO::FETCH_ASSOC);
     </header>
 
     <!-- HERO/BREADCRUMB IMAGE SECTION -->
-    <section class="relative h-64 md:h-80 bg-cover bg-center" style="background-image: url('<?= htmlspecialchars($productBreadcrumb[0]['input_image'] ?? '') ?>');">
+    <section class="relative h-64 md:h-80 bg-cover bg-center" style="background-image: url('<?= htmlspecialchars($singleProduct[0]['image_one'] ?? '') ?>');">
         <div class="absolute inset-0 bg-black/30"></div>
         <div class="relative z-10 h-full flex flex-col justify-center items-center text-white text-center px-4">
             <nav class="text-sm font-light tracking-wider" aria-label="Breadcrumb">

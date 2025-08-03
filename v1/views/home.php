@@ -810,15 +810,15 @@ body.preloading {
                     <li class="box-minicart">
                       <div class="minicart">
                         <div class="cart-block box-has-content">
-                          <a href="cart.html" class="push_side header-icon" data-id="#js_cart_popup" title="Cart">
+                          <a href="view-cart" class="push_side header-icon" title="Cart">
                             <!--?xml version="1.0" ?--><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                              <defs>
+                             <!--  <defs>
                                 <style>
                                   .cls-1 {
                                     fill: none;
                                   }
                                 </style>
-                              </defs>
+                              </defs> -->
                               <title></title>
                               <g data-name="Layer 2" id="Layer_2">
                                 <path d="M23.52,29h-15a5.48,5.48,0,0,1-5.31-6.83L6.25,9.76a1,1,0,0,1,1-.76H24a1,1,0,0,1,1,.7l3.78,12.16a5.49,5.49,0,0,1-.83,4.91A5.41,5.41,0,0,1,23.52,29ZM8,11,5.11,22.65A3.5,3.5,0,0,0,8.48,27h15a3.44,3.44,0,0,0,2.79-1.42,3.5,3.5,0,0,0,.53-3.13L23.28,11Z"></path>
@@ -1177,7 +1177,7 @@ body.preloading {
                       </div>
                     </aside>
                   </div>
-                  <div class="footer-iteam col-lg-12 col-md-12 col-12 h_center v_top text_center">
+                  <<!-- div class="footer-iteam col-lg-12 col-md-12 col-12 h_center v_top text_center">
                     <aside id="block_mail_QdBmyp" class="widget_mail">
                       <div class="labernewsletter flex h_center v_top text_center">
                         <div class="newsletter-content" style="border-color: ">
@@ -1216,7 +1216,7 @@ body.preloading {
                         </div>
                       </div>
                     </aside>
-                  </div>
+                  </div> -->
                   <style data-shopify="">
                     #block_mail_QdBmyp.widget_mail
                       .widget_footer
@@ -1269,7 +1269,7 @@ body.preloading {
                               font-size: 12px !important;
                               line-height: 18px;
                             ">
-                            ©<?=date('Y')?> <?=$site_name?> FASHION LTD. All rights reserved.
+                            ©<?=date('Y')?> <?=$site_name?> All rights reserved.
                             <a target="_blank" href="" style="
                                 font-size: 12px;
                                 line-height: 18px;

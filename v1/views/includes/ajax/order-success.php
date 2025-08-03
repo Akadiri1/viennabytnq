@@ -1,24 +1,21 @@
 <?php
 // =================================================================
-// WHATSAPP NOTIFICATION FUNCTIONS
-// It's good practice to keep these in a separate 'require_once' file,
-// but for a single-file solution, they are placed here at the top.
+// WHATSAPP NOTIFICATION FUNCTIONS (USING ULTRAMSG)
 // =================================================================
 
 /**
- * Main function to format and send an entire order notification to WhatsApp.
- * @param array $orderItems An array of items fetched from your database.
- * @param array $config     Configuration array with all necessary credentials and paths.
+ * [FINAL VERSION] Main function to format and send an entire order notification to WhatsApp.
+ * It now includes a secure link for the owner to view full details.
  */
-function sendOrderNotificationToWhatsApp(array $orderItems, array $config) {
+function sendOrderNotificationToWhatsApp(array $orderItems, array $config, array $buyerDetails = []) {
     if (empty($orderItems)) {
-        return; // Exit if there are no items to process
+        error_log("WhatsApp Error: Attempted to send notification with no order items.");
+        return;
     }
 
-    // Use the human-readable order_number for the message, which is more user-friendly.
     $orderNumber = $orderItems[0]['order_number'];
 
-    // --- Build the main text message ---
+    // --- Build main message ---
     $message = "🎉 *New Order Received!* 🎉\n";
     $message .= "_Order #: " . htmlspecialchars($orderNumber) . "_\n\n";
     $message .= "-----------------------------------\n\n";
@@ -27,44 +24,87 @@ function sendOrderNotificationToWhatsApp(array $orderItems, array $config) {
     $totalValue = 0;
 
     foreach ($orderItems as $item) {
-        // --- Prepare and send the image for this item FIRST ---
         $imageUrl = rtrim($config['website_url'], '/') . '/' . ltrim($config['images_path'], '/') . $item['product_image'];
         $caption = htmlspecialchars($item['product_name']);
         
-        // This function will send one image message per item
-        sendWhatsAppImage($config, $imageUrl, $caption);
+        // Send image
+        $imageResponse = sendWhatsAppImage($config, $imageUrl, $caption);
+        error_log("WhatsApp Image API Response: " . $imageResponse);
 
-        // --- Append item details to the main text message ---
         $message .= "*Item " . $itemCounter++ . ": " . htmlspecialchars($item['product_name']) . "*\n";
         $message .= "- _Quantity:_ " . $item['quantity'] . "\n";
-        $message .= "- _Price:_ $" . number_format($item['price_per_unit'], 2) . " each\n";
+        $message .= "- _Price:_ ₦" . number_format($item['price_per_unit'], 2) . " each\n";
 
-        if (!empty($item['color_name'])) $message .= "- _Color:_ " . htmlspecialchars($item['color_name']) . "\n";
-        if (!empty($item['custom_color_name'])) $message .= "- _Color (Custom):_ " . htmlspecialchars($item['custom_color_name']) . "\n";
-        if (!empty($item['size_name'])) $message .= "- _Size:_ " . htmlspecialchars($item['size_name']) . "\n";
-        if (!empty($item['custom_size_details'])) $message .= "- _Size (Custom):_ " . htmlspecialchars($item['custom_size_details']) . "\n";
-        
-        $message .= "\n"; // Add a space between items
+        if (!empty($item['color_name'])) {
+            $message .= "- _Color:_ " . htmlspecialchars($item['color_name']) . "\n";
+        }
+        if (!empty($item['custom_color_name'])) {
+            $message .= "- _Color (Custom):_ " . htmlspecialchars($item['custom_color_name']) . "\n";
+        }
+        if (!empty($item['size_name'])) {
+            $message .= "- _Size:_ " . htmlspecialchars($item['size_name']) . "\n";
+        }
 
+        // ✅ Format custom size JSON
+        if (!empty($item['custom_size_details'])) {
+            $details = json_decode($item['custom_size_details'], true);
+            if (is_array($details)) {
+                $message .= "- _Size (Custom):_\n";
+                foreach ($details as $key => $value) {
+                    if (!empty($value)) {
+                        $prettyKey = ucfirst(str_replace('_', ' ', $key));
+                        $message .= "   • {$prettyKey}: {$value}\n";
+                    }
+                }
+            } else {
+                $message .= "- _Size (Custom):_ " . htmlspecialchars($item['custom_size_details']) . "\n";
+            }
+        }
+
+        $message .= "\n";
         $totalValue += $item['quantity'] * $item['price_per_unit'];
     }
 
     $message .= "-----------------------------------\n";
-    $message .= "*Total Order Value: $" . number_format($totalValue, 2) . "*";
+    $message .= "*Total Order Value: ₦" . number_format($totalValue, 2) . "*\n\n";
 
-    // --- Send the final consolidated text message with all details ---
-    sendWhatsAppMessage($config, $message);
+    // ✅ Add buyer details if provided
+    if (!empty($buyerDetails)) {
+        $message .= "👤 *Buyer Information:*\n";
+        if (!empty($buyerDetails['name'])) {
+            $message .= "- Name: " . htmlspecialchars($buyerDetails['name']) . "\n";
+        }
+        if (!empty($buyerDetails['phone'])) {
+            $message .= "- Phone: " . htmlspecialchars($buyerDetails['phone']) . "\n";
+        }
+        if (!empty($buyerDetails['address'])) {
+            $message .= "- Address: " . htmlspecialchars($buyerDetails['address']) . "\n";
+        }
+        $message .= "\n";
+    }
+
+    // ✅ Secure order view link
+    $viewOrderUrl = rtrim($config['website_url'], '/') . 
+                    '/order-view?order_number=' . urlencode($orderNumber) . 
+                    '&token=' . urlencode(OWNER_VIEW_SECRET_TOKEN);
+
+    $message .= "*View Full Details:*\n" . $viewOrderUrl;
+
+    // Send text message
+    $textResponse = sendWhatsAppMessage($config, $message);
+    error_log("WhatsApp Text API Response: " . $textResponse);
 }
 
 /**
- * Sends a text-only message using the Twilio API.
+ * Sends a text-only message and returns the API response for debugging.
  */
-function sendWhatsAppMessage($config, $text) {
-    $endpoint = "https://api.twilio.com/2010-04-01/Accounts/" . $config['twilio_sid'] . "/Messages.json";
+function sendWhatsAppMessage(array $config, string $text) {
+    $endpoint = "https://api.ultramsg.com/" . $config['ultramsg_instance_id'] . "/messages/chat";
     $data = [
-        'To' => $config['recipient_number'],
-        'From' => $config['twilio_number'],
-        'Body' => $text
+        'token' => $config['ultramsg_token'],
+        'to' => $config['recipient_number'],
+        'body' => $text,
+        'priority' => 10
     ];
 
     $ch = curl_init();
@@ -72,22 +112,27 @@ function sendWhatsAppMessage($config, $text) {
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_USERPWD, $config['twilio_sid'] . ":" . $config['twilio_token']);
-    curl_exec($ch);
-    // In a real app, you might check curl_getinfo($ch, CURLINFO_HTTP_CODE) and the response body for errors.
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+    
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
     curl_close($ch);
+
+    if ($error) return "cURL Error: " . $error;
+    return $response;
 }
 
 /**
- * Sends an image message using the Twilio API.
+ * Sends an image message and returns the API response for debugging.
  */
-function sendWhatsAppImage($config, $imageUrl, $caption = '') {
-    $endpoint = "https://api.twilio.com/2010-04-01/Accounts/" . $config['twilio_sid'] . "/Messages.json";
+function sendWhatsAppImage(array $config, string $imageUrl, string $caption = '') {
+    $endpoint = "https://api.ultramsg.com/" . $config['ultramsg_instance_id'] . "/messages/image";
     $data = [
-        'To' => $config['recipient_number'],
-        'From' => $config['twilio_number'],
-        'MediaUrl' => $imageUrl,
-        'Body' => $caption // In the API, the 'Body' serves as the caption for media messages.
+        'token' => $config['ultramsg_token'],
+        'to' => $config['recipient_number'],
+        'image' => $imageUrl,
+        'caption' => $caption,
+        'priority' => 5
     ];
     
     $ch = curl_init();
@@ -95,9 +140,14 @@ function sendWhatsAppImage($config, $imageUrl, $caption = '') {
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_USERPWD, $config['twilio_sid'] . ":" . $config['twilio_token']);
-    curl_exec($ch);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+    
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
     curl_close($ch);
+
+    if ($error) return "cURL Error: " . $error;
+    return $response;
 }
 
 // =================================================================
@@ -116,29 +166,34 @@ $orderRef = $_SESSION['last_order_ref'];
 // ==> START: WHATSAPP NOTIFICATION TRIGGER
 // =================================================================
 
-// --- 1. CONFIGURE YOUR DETAILS HERE ---
-// IMPORTANT: Fill in your actual data in this section.
+// --- 1. DEFINE A SECRET TOKEN FOR THE OWNER'S VIEW LINK ---
+// IMPORTANT: Keep this secret. This is your key to the order-view.php page.
+define('OWNER_VIEW_SECRET_TOKEN', ' Vienna-Secret-Key-For-Viewing-Orders-789123');
+
+// --- 2. CONFIGURE YOUR WHATSAPP DETAILS HERE ---
 $whatsappConfig = [
-    'recipient_number' => 'whatsapp:+15558675309', // The website owner's WhatsApp number (international format)
-    'website_url'      => 'https://viennabytnq.com',          // Your full website URL (e.g., https://www.example.com)
-    'images_path'      => '/uploads/',                        // The public server path to your product images
-    'twilio_sid'       => 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',  // Your Twilio Account SID
-    'twilio_token'     => 'your_auth_token_xxxxxxxxxxxxxx',   // Your Twilio Auth Token
-    'twilio_number'    => 'whatsapp:+14155238886'           // Your Twilio WhatsApp-enabled Number
+    // CRITICAL: Your number must be in international format.
+    // I have used +234 for Nigeria as an example. Change it if you are in a different country.
+    'recipient_number'    => '+2349010035033',
+    
+    'website_url'         => 'https://viennabytnq.com',
+    'images_path'         => '/uploads/',
+    
+    // YOUR REAL CREDENTIALS FROM ULTRAMSG
+    'ultramsg_instance_id' => 'instance137057',
+    'ultramsg_token'       => 'nj5z4gaollvjn0y1'
 ];
 
 // We use a try-catch block so that if the notification fails,
 // it does not break the success page for the customer.
 try {
-    // --- 2. GET THE ORDER ID FROM THE PAYMENT REFERENCE ---
+    // This assumes $conn is your PDO database connection object.
     $orderIdStmt = $conn->prepare("SELECT id FROM orders WHERE payment_reference = ?");
     $orderIdStmt->execute([$orderRef]);
     $orderIdResult = $orderIdStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($orderIdResult) {
         $orderId = $orderIdResult['id'];
-
-        // --- 3. FETCH ALL ORDER ITEMS FOR THE NOTIFICATION ---
         $itemsStmt = $conn->prepare("
             SELECT
                 o.order_number,
@@ -158,15 +213,16 @@ try {
         $itemsStmt->execute([$orderId]);
         $orderItemsForNotification = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // --- 4. SEND THE NOTIFICATION ---
         if (!empty($orderItemsForNotification)) {
             sendOrderNotificationToWhatsApp($orderItemsForNotification, $whatsappConfig);
+        } else {
+             error_log("WhatsApp Notice: Order found, but no items associated with order ID: " . $orderId);
         }
+    } else {
+        error_log("WhatsApp Error: Could not find order with payment reference: " . $orderRef);
     }
 } catch (Exception $e) {
-    // If something goes wrong, the customer page will still load.
-    // For debugging, you can log this error to a file.
-    // error_log('WhatsApp Notification Failed: ' . $e->getMessage());
+    error_log('WhatsApp Notification Script Failed: ' . $e->getMessage());
 }
 // =================================================================
 // ==> END: WHATSAPP NOTIFICATION TRIGGER

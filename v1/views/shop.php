@@ -60,7 +60,7 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
             <ul class="space-y-4">
                 <li><a href="/home" class="flex items-center p-3 text-lg font-medium text-brand-text rounded-md hover:bg-gray-200/60 group transition-colors duration-200"><i data-feather="home" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Home</span></a></li>
                 <li><a href="/shop" class="flex items-center p-3 text-lg font-medium text-brand-text rounded-md hover:bg-gray-200/60 group transition-colors duration-200"><i data-feather="shopping-bag" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Products</span></a></li>
-                <li><a href="/about" class="flex items-center p-3 text-lg font-medium text-brand-text rounded-md hover:bg-gray-200/60 group transition-colors duration-200"><i data-feather="info" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">About Us</span></a></li>
+                <!-- <li><a href="/about" class="flex items-center p-3 text-lg font-medium text-brand-text rounded-md hover:bg-gray-200/60 group transition-colors duration-200"><i data-feather="info" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">About Us</span></a></li> -->
             </ul>
         </nav>
         <div class="p-6 border-t border-gray-200"><p class="text-xs text-brand-gray text-center">© <?=date('Y')?> <?=$site_name?></p></div>
