@@ -80,6 +80,14 @@ if (count($uri) > 2) {
     include APP_PATH."/views/home.php";
     break;
 
+    case 'login':
+    include APP_PATH."/views/login.php";
+    break;
+
+    case 'create_users':
+    include APP_PATH."/views/create_users.php";
+    break;
+
     case 'shop':
       if (!headers_sent()) {
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -110,6 +118,61 @@ if (count($uri) > 2) {
       include APP_PATH."/views/checkout.php";
       break;
 
+      case 'dashboard':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+       case 'dashboard?'.$query_string:
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+       case 'dashboard?page=colors':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+       case 'dashboard?page=sizes':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+       case 'dashboard?page=orders':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+       case 'dashboard?page=add_product&edit_id=':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+      case 'dashboard?page=colors&edit_id=':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+       case 'dashboard?page=sizes&edit_id=':
+      include APP_PATH."/views/dashboard.php";
+      break;
+     
+      case 'dashboard?page=dashboard':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+      // case 'dashboard?page=add_product&edit_id='.$_GET['edit_id']:
+      // include APP_PATH."/views/dashboard.php";
+      // break;
+      
+
+       case 'dashboard?page=add_product':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+         case 'dashboard?page=manage_products':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+      case 'dashboard?page=logout':
+      include APP_PATH."/views/dashboard.php";
+      break;
+
+// ... your other cases for 'shop', 'home', etc.
+        
       case 'update-cart':
       include APP_PATH."/views/includes/ajax/update-cart.php";
       break;
