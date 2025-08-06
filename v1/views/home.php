@@ -1175,7 +1175,7 @@ body.preloading {
                       </div>
                     </aside>
                   </div>
-                  <<!-- div class="footer-iteam col-lg-12 col-md-12 col-12 h_center v_top text_center">
+                  <!-- div class="footer-iteam col-lg-12 col-md-12 col-12 h_center v_top text_center">
                     <aside id="block_mail_QdBmyp" class="widget_mail">
                       <div class="labernewsletter flex h_center v_top text_center">
                         <div class="newsletter-content" style="border-color: ">
