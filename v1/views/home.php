@@ -632,9 +632,7 @@ $videoText = $homeVideo[0]['video_text'];
 </div>
 
 <style>
-/* =================================================================== */
-/* PRELOADER STYLES (v2 with Smooth Writing Effect)                  */
-/* =================================================================== */
+
 #preloader {
     position: fixed;
     inset: 0;
@@ -746,7 +744,7 @@ body.preloading {
     setTimeout(function() {
         isTimerFinished = true;
         hidePreloader(); // Attempt to hide preloader
-    }, 4000); // 6000 milliseconds = 6 seconds
+    }, 4000); // 4000 milliseconds = 4 seconds
 
 </script>
     <div class="page-load circle-loadding" style="display: none;"><span></span></div>

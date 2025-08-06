@@ -23,11 +23,15 @@ if (!$order) {
 
 // Decode the shipping_address JSON to get customer details
 $shippingDetails = json_decode($order['shipping_address'], true);
-$customerName = $shippingDetails['fullName'] ?? 'N/A';
+
+// --- MODIFIED SECTION: Extract all contact details including phone number ---
+$customerName = $shippingDetails['fullName'] ?? 'N/A'; 
+$customerPhone = $shippingDetails['phoneNumber'] ?? ''; // <-- Added phone number extraction
 $fullAddress = ($shippingDetails['address'] ?? '') . ', ' . ($shippingDetails['city'] ?? '') . ', ' . ($shippingDetails['state'] ?? '') . ' ' . ($shippingDetails['zip'] ?? '') . ', ' . ($shippingDetails['country'] ?? '');
 $customerEmail = $order['customer_email'];
+// --- END MODIFIED SECTION ---
 
-// **FIX**: Fetch order items and JOIN with panel_products to get the name and image_one.
+// Fetch order items and JOIN with panel_products to get the name and image_one.
 $itemsStmt = $conn->prepare(
     "SELECT oi.*, pp.name as product_name, pp.image_one as product_image
      FROM order_items oi
@@ -56,6 +60,11 @@ foreach ($orderItems as &$item) { // Use reference '&' to modify the array direc
 }
 unset($item); // Unset the reference after the loop
 
+// Assuming these variables are defined elsewhere for your header/footer
+$logo_directory = $logo_directory ?? 'images/logo.png';
+$site_name = $site_name ?? 'Your Site Name';
+$site_address = $site_address ?? '123 Fashion Ave, Lagos, Nigeria';
+$site_email = $site_email ?? 'contact@yoursite.com';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,7 +73,6 @@ unset($item); // Unset the reference after the loop
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice #<?= htmlspecialchars($order['order_number']) ?> - <?=$site_name?></title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Cormorant+Garamond:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
@@ -92,10 +100,10 @@ unset($item); // Unset the reference after the loop
     <div id="invoice-content" class="invoice-container p-8 md:p-12">
         <header class="invoice-header flex justify-between items-start border-b pb-8">
             <div>
-                <img src="<?= htmlspecialchars($logo_directory ?? 'images/logo.png') ?>" alt="<?=$site_name?> Logo" class="h-12">
+                <img src="<?= htmlspecialchars($logo_directory) ?>" alt="<?=$site_name?> Logo" class="h-12">
                 <div class="mt-4 text-sm text-gray-600">
-                    <p><?=$site_address?></p>
-                    <p><?=$site_email?></p>
+                    <p><?= htmlspecialchars($site_address) ?></p>
+                    <p><?= htmlspecialchars($site_email) ?></p>
                 </div>
             </div>
             <div class="text-right">
@@ -108,8 +116,15 @@ unset($item); // Unset the reference after the loop
             <div>
                 <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500">Billed To</h2>
                 <p class="font-semibold text-gray-800 mt-2"><?= htmlspecialchars($customerName) ?></p>
-                <p class="text-gray-600"><?= nl2br(htmlspecialchars($fullAddress)) ?></p>
+                <p class="text-gray-600"><?= nl2br(htmlspecialchars(trim($fullAddress, ', '))) ?></p>
                 <p class="text-gray-600"><?= htmlspecialchars($customerEmail) ?></p>
+                
+                <!-- ADDED: Display phone number if it exists -->
+                <?php if (!empty($customerPhone)): ?>
+                <p class="text-gray-600"><?= htmlspecialchars($customerPhone) ?></p>
+                <?php endif; ?>
+                <!-- END ADDED -->
+
             </div>
             <div class="text-right">
                 <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500">Details</h2>
@@ -125,14 +140,12 @@ unset($item); // Unset the reference after the loop
                         <th class="p-4 text-sm font-semibold uppercase text-gray-600">Product</th>
                         <th class="p-4 text-sm font-semibold uppercase text-gray-600 text-center">Qty</th>
                         <th class="p-4 text-sm font-semibold uppercase text-gray-600 text-right">Unit Price</th>
-                        <!-- <th class="p-4 text-sm font-semibold uppercase text-gray-600 text-right">Total</th> -->
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach($orderItems as $item): ?>
                     <tr class="border-b">
                         <td class="p-4">
-                            <!-- **FIX**: Displaying the fetched product image, name, and generated options -->
                             <div class="flex items-center">
                                 <?php if (!empty($item['product_image'])): ?>
                                 <img src="<?= htmlspecialchars($item['product_image']) ?>" class="w-12 h-16 object-cover mr-4 rounded-md shadow-sm" alt="<?= htmlspecialchars($item['product_name']) ?>">
@@ -145,7 +158,6 @@ unset($item); // Unset the reference after the loop
                         </td>
                         <td class="p-4 text-center text-gray-600"><?= $item['quantity'] ?></td>
                         <td class="p-4 text-right text-gray-600">₦<?= number_format($item['price_per_unit'], 2) ?></td>
-                        <!-- <td class="p-4 text-right font-semibold text-gray-800">₦<?= number_format($item['total_price'], 2) ?></td> -->
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

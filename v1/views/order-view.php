@@ -111,8 +111,8 @@ $shippingDetails = json_decode($order['shipping_address'], true);
             <dt>Email Address:</dt>
             <dd><?= htmlspecialchars($order['email']) ?></dd>
             
-            <!-- <dt>Phone Number:</dt>
-            <dd><?= htmlspecialchars($order['phone']) ?></dd> -->
+            <dt>Phone Number:</dt>
+            <dd><?= htmlspecialchars($shippingDetails['phoneNumber']) ?></dd>
         </dl>
     </div>
 

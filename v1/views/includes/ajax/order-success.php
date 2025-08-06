@@ -1,74 +1,67 @@
 <?php
+// PAGE SETUP & SECURITY - Ensure your DB connection and session start are here.
+// require 'config/db_connection.php';
+// require 'functions.php';
+// session_start();
+
+if (!isset($_GET['ref']) || !isset($_SESSION['last_order_ref']) || $_GET['ref'] !== $_SESSION['last_order_ref']) {
+    header("Location: /shop");
+    exit;
+}
+
+$orderRef = $_SESSION['last_order_ref'];
+
 // =================================================================
 // WHATSAPP NOTIFICATION FUNCTIONS (USING ULTRAMSG)
 // =================================================================
 
 /**
- * [FINAL VERSION] Main function to format and send an entire order notification to WhatsApp.
- * It now includes a secure link for the owner to view full details.
+ * Main function to format and send an entire order notification to WhatsApp.
+ * MODIFIED: Now takes an $orderDetails array for accurate financial totals.
  */
-function sendOrderNotificationToWhatsApp(array $orderItems, array $config, array $buyerDetails = []) {
-    if (empty($orderItems)) {
-        error_log("WhatsApp Error: Attempted to send notification with no order items.");
+function sendOrderNotificationToWhatsApp(array $orderItems, array $config, array $orderDetails, array $buyerDetails = []) {
+    if (empty($orderItems) || empty($config['recipient_numbers']) || empty($orderDetails)) {
+        error_log("WhatsApp Error: Missing items, recipients, or order details.");
         return;
     }
 
-    $orderNumber = $orderItems[0]['order_number'];
+    $orderNumber = $orderDetails['order_number'];
 
-    // --- Build main message ---
+    // --- Build main message (This is done once) ---
     $message = "🎉 *New Order Received!* 🎉\n";
     $message .= "_Order #: " . htmlspecialchars($orderNumber) . "_\n\n";
     $message .= "-----------------------------------\n\n";
 
     $itemCounter = 1;
-    $totalValue = 0;
-
+    
+    // Build the text for all items first
+    $itemsText = "";
     foreach ($orderItems as $item) {
-        $imageUrl = rtrim($config['website_url'], '/') . '/' . ltrim($config['images_path'], '/') . $item['product_image'];
-        $caption = htmlspecialchars($item['product_name']);
-        
-        // Send image
-        $imageResponse = sendWhatsAppImage($config, $imageUrl, $caption);
-        error_log("WhatsApp Image API Response: " . $imageResponse);
+        $itemsText .= "*Item " . $itemCounter++ . ": " . htmlspecialchars($item['product_name']) . "*\n";
+        $itemsText .= "- _Quantity:_ " . $item['quantity'] . "\n";
+        $itemsText .= "- _Price:_ ₦" . number_format($item['price_per_unit'], 2) . " each\n";
 
-        $message .= "*Item " . $itemCounter++ . ": " . htmlspecialchars($item['product_name']) . "*\n";
-        $message .= "- _Quantity:_ " . $item['quantity'] . "\n";
-        $message .= "- _Price:_ ₦" . number_format($item['price_per_unit'], 2) . " each\n";
-
-        if (!empty($item['color_name'])) {
-            $message .= "- _Color:_ " . htmlspecialchars($item['color_name']) . "\n";
-        }
-        if (!empty($item['custom_color_name'])) {
-            $message .= "- _Color (Custom):_ " . htmlspecialchars($item['custom_color_name']) . "\n";
-        }
-        if (!empty($item['size_name'])) {
-            $message .= "- _Size:_ " . htmlspecialchars($item['size_name']) . "\n";
-        }
-
-        // ✅ Format custom size JSON
-        if (!empty($item['custom_size_details'])) {
-            $details = json_decode($item['custom_size_details'], true);
-            if (is_array($details)) {
-                $message .= "- _Size (Custom):_\n";
-                foreach ($details as $key => $value) {
-                    if (!empty($value)) {
-                        $prettyKey = ucfirst(str_replace('_', ' ', $key));
-                        $message .= "   • {$prettyKey}: {$value}\n";
-                    }
-                }
-            } else {
-                $message .= "- _Size (Custom):_ " . htmlspecialchars($item['custom_size_details']) . "\n";
-            }
-        }
-
-        $message .= "\n";
-        $totalValue += $item['quantity'] * $item['price_per_unit'];
+        if (!empty($item['color_name'])) $itemsText .= "- _Color:_ " . htmlspecialchars($item['color_name']) . "\n";
+        if (!empty($item['custom_color_name'])) $itemsText .= "- _Color (Custom):_ " . htmlspecialchars($item['custom_color_name']) . "\n";
+        if (!empty($item['size_name'])) $itemsText .= "- _Size:_ " . htmlspecialchars($item['size_name']) . "\n";
+        if (!empty($item['custom_size_details'])) { /* You can add more detailed formatting here if needed */ }
+        $itemsText .= "\n";
     }
+    $message .= $itemsText;
 
+    // --- MODIFIED: Build the final financial summary from $orderDetails ---
     $message .= "-----------------------------------\n";
-    $message .= "*Total Order Value: ₦" . number_format($totalValue, 2) . "*\n\n";
+    $message .= "Subtotal: ₦" . number_format($orderDetails['subtotal'], 2) . "\n";
+    $message .= "Shipping: ₦" . number_format($orderDetails['shipping_fee'], 2) . "\n";
 
-    // ✅ Add buyer details if provided
+    if (!empty($orderDetails['discount_amount']) && $orderDetails['discount_amount'] > 0) {
+        $message .= "Discount: -₦" . number_format($orderDetails['discount_amount'], 2) . "\n";
+    }
+    
+    $message .= "*Grand Total: ₦" . number_format($orderDetails['grand_total'], 2) . "*\n\n";
+    // --- END MODIFIED ---
+
+    // --- MODIFIED: Add Buyer Information including Phone Number ---
     if (!empty($buyerDetails)) {
         $message .= "👤 *Buyer Information:*\n";
         if (!empty($buyerDetails['name'])) {
@@ -82,165 +75,121 @@ function sendOrderNotificationToWhatsApp(array $orderItems, array $config, array
         }
         $message .= "\n";
     }
+    // --- END MODIFIED ---
 
-    // ✅ Secure order view link
-    $viewOrderUrl = rtrim($config['website_url'], '/') . 
-                    '/order-view?order_number=' . urlencode($orderNumber) . 
-                    '&token=' . urlencode(OWNER_VIEW_SECRET_TOKEN);
-
+    $viewOrderUrl = rtrim($config['website_url'], '/') . '/order-view?order_number=' . urlencode($orderNumber) . '&token=' . urlencode(OWNER_VIEW_SECRET_TOKEN);
     $message .= "*View Full Details:*\n" . $viewOrderUrl;
 
-    // Send text message
-    $textResponse = sendWhatsAppMessage($config, $message);
-    error_log("WhatsApp Text API Response: " . $textResponse);
+    // Loop through each recipient and send the full notification
+    foreach ($config['recipient_numbers'] as $recipient) {
+        // 1. Send all images to the current recipient
+        foreach ($orderItems as $item) {
+            $imageUrl = rtrim($config['website_url'], '/') . '/' . ltrim($config['images_path'], '/') . $item['product_image'];
+            $caption = htmlspecialchars($item['product_name']);
+            sendWhatsAppImage($config, $recipient, $imageUrl, $caption);
+        }
+
+        // 2. Send the final, complete text message to the current recipient
+        sendWhatsAppMessage($config, $recipient, $message);
+    }
 }
 
 /**
- * Sends a text-only message and returns the API response for debugging.
+ * Sends a text-only message to a specific recipient.
  */
-function sendWhatsAppMessage(array $config, string $text) {
+function sendWhatsAppMessage(array $config, string $recipient, string $text) {
     $endpoint = "https://api.ultramsg.com/" . $config['ultramsg_instance_id'] . "/messages/chat";
-    $data = [
-        'token' => $config['ultramsg_token'],
-        'to' => $config['recipient_number'],
-        'body' => $text,
-        'priority' => 10
-    ];
-
+    $data = ['token' => $config['ultramsg_token'], 'to' => $recipient, 'body' => $text, 'priority' => 10];
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $endpoint);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
-    
-    $response = curl_exec($ch);
-    $error = curl_error($ch);
+    curl_setopt_array($ch, [CURLOPT_URL => $endpoint, CURLOPT_POST => 1, CURLOPT_POSTFIELDS => http_build_query($data), CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded']]);
+    curl_exec($ch);
     curl_close($ch);
-
-    if ($error) return "cURL Error: " . $error;
-    return $response;
 }
 
 /**
- * Sends an image message and returns the API response for debugging.
+ * Sends an image message to a specific recipient.
  */
-function sendWhatsAppImage(array $config, string $imageUrl, string $caption = '') {
+function sendWhatsAppImage(array $config, string $recipient, string $imageUrl, string $caption = '') {
     $endpoint = "https://api.ultramsg.com/" . $config['ultramsg_instance_id'] . "/messages/image";
-    $data = [
-        'token' => $config['ultramsg_token'],
-        'to' => $config['recipient_number'],
-        'image' => $imageUrl,
-        'caption' => $caption,
-        'priority' => 5
-    ];
-    
+    $data = ['token' => $config['ultramsg_token'], 'to' => $recipient, 'image' => $imageUrl, 'caption' => $caption, 'priority' => 5];
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $endpoint);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
-    
-    $response = curl_exec($ch);
-    $error = curl_error($ch);
+    curl_setopt_array($ch, [CURLOPT_URL => $endpoint, CURLOPT_POST => 1, CURLOPT_POSTFIELDS => http_build_query($data), CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded']]);
+    curl_exec($ch);
     curl_close($ch);
-
-    if ($error) return "cURL Error: " . $error;
-    return $response;
 }
 
 // =================================================================
-// PAGE LOGIC STARTS HERE
+// WHATSAPP NOTIFICATION TRIGGER LOGIC
 // =================================================================
 
-// This page should only be accessible right after a successful payment.
-if (!isset($_GET['ref']) || !isset($_SESSION['last_order_ref']) || $_GET['ref'] !== $_SESSION['last_order_ref']) {
-    header("Location: /shop");
-    exit;
-}
+define('OWNER_VIEW_SECRET_TOKEN', 'Vienna-Secret-Key-For-Viewing-Orders-789123');
 
-$orderRef = $_SESSION['last_order_ref'];
-
-// =================================================================
-// ==> START: WHATSAPP NOTIFICATION TRIGGER
-// =================================================================
-
-// --- 1. DEFINE A SECRET TOKEN FOR THE OWNER'S VIEW LINK ---
-// IMPORTANT: Keep this secret. This is your key to the order-view.php page.
-define('OWNER_VIEW_SECRET_TOKEN', ' Vienna-Secret-Key-For-Viewing-Orders-789123');
-
-// --- 2. CONFIGURE YOUR WHATSAPP DETAILS HERE ---
 $whatsappConfig = [
-    // CRITICAL: Your number must be in international format.
-    // I have used +234 for Nigeria as an example. Change it if you are in a different country.
-    'recipient_number'    => '+2349010035033',
-    
+    'recipient_numbers' => ['+2349010035033'],
     'website_url'         => 'https://viennabytnq.com',
     'images_path'         => '/uploads/',
-    
-    // YOUR REAL CREDENTIALS FROM ULTRAMSG
     'ultramsg_instance_id' => 'instance137057',
     'ultramsg_token'       => 'nj5z4gaollvjn0y1'
 ];
 
-// We use a try-catch block so that if the notification fails,
-// it does not break the success page for the customer.
 try {
-    // This assumes $conn is your PDO database connection object.
-    $orderIdStmt = $conn->prepare("SELECT id FROM orders WHERE payment_reference = ?");
-    $orderIdStmt->execute([$orderRef]);
-    $orderIdResult = $orderIdStmt->fetch(PDO::FETCH_ASSOC);
+    // MODIFIED: Fetch the entire order record to get totals and shipping address
+    $orderStmt = $conn->prepare("SELECT * FROM orders WHERE payment_reference = ?");
+    $orderStmt->execute([$orderRef]);
+    $orderResult = $orderStmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($orderIdResult) {
-        $orderId = $orderIdResult['id'];
+    if ($orderResult) {
+        $orderId = $orderResult['id'];
+        
+        // Prepare the necessary data arrays
+        $buyerShippingDetails = json_decode($orderResult['shipping_address'], true);
+        $buyerInfoForWhatsApp = [
+            'name'    => $buyerShippingDetails['fullName'] ?? 'N/A',
+            'phone'   => $buyerShippingDetails['phoneNumber'] ?? 'N/A',
+            'address' => $buyerShippingDetails['address'] ?? 'N/A'
+        ];
+
+        $orderDetailsForWhatsApp = [
+            'order_number'    => $orderResult['order_number'],
+            'subtotal'        => $orderResult['subtotal'],
+            'shipping_fee'    => $orderResult['shipping_fee'],
+            'discount_amount' => $orderResult['discount_amount'],
+            'grand_total'     => $orderResult['grand_total'],
+        ];
+
+        // Fetch all items for the order
         $itemsStmt = $conn->prepare("
-            SELECT
-                o.order_number,
-                oi.quantity,
-                oi.price_per_unit,
-                oi.color_name,
-                oi.custom_color_name,
-                oi.size_name,
-                oi.custom_size_details,
-                pp.name AS product_name,
-                pp.image_one AS product_image
+            SELECT oi.*, pp.name AS product_name, pp.image_one AS product_image
             FROM order_items AS oi
             JOIN panel_products AS pp ON oi.product_id = pp.id
-            JOIN orders AS o ON oi.order_id = o.id
             WHERE oi.order_id = ?
         ");
         $itemsStmt->execute([$orderId]);
         $orderItemsForNotification = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Call the function with all required pieces of information
         if (!empty($orderItemsForNotification)) {
-            sendOrderNotificationToWhatsApp($orderItemsForNotification, $whatsappConfig);
-        } else {
-             error_log("WhatsApp Notice: Order found, but no items associated with order ID: " . $orderId);
+            sendOrderNotificationToWhatsApp($orderItemsForNotification, $whatsappConfig, $orderDetailsForWhatsApp, $buyerInfoForWhatsApp);
         }
-    } else {
-        error_log("WhatsApp Error: Could not find order with payment reference: " . $orderRef);
     }
 } catch (Exception $e) {
     error_log('WhatsApp Notification Script Failed: ' . $e->getMessage());
 }
+
 // =================================================================
-// ==> END: WHATSAPP NOTIFICATION TRIGGER
+// CUSTOMER-FACING PAGE LOGIC
 // =================================================================
 
-
-// --- Continue with your original code for the customer-facing page ---
+// This fetch is now only for the customer-facing part of the page
 $stmt = $conn->prepare(
     "SELECT o.order_number, o.shipping_address, c.email
-     FROM orders o
-     JOIN customers c ON o.customer_id = c.id
+     FROM orders o JOIN customers c ON o.customer_id = c.id
      WHERE o.payment_reference = ? AND o.order_status = 'paid'"
 );
 $stmt->execute([$orderRef]);
 $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$order) {
-    // Redirect if the order can't be found (e.g., payment failed)
     header("Location: /shop");
     exit;
 }
@@ -249,11 +198,10 @@ $shippingDetails = json_decode($order['shipping_address'], true);
 $customerName = $shippingDetails['fullName'] ?? 'Valued Customer';
 $customerEmail = $order['email'];
 
-// Unset the session variable to prevent re-triggering on refresh.
 unset($_SESSION['last_order_ref']);
 
-// Fetch breadcrumb image from DB
-$productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' => 'show']);
+$logo_directory = $logo_directory ?? 'path/to/your/logo.png';
+$site_name = $site_name ?? 'Your Site Name';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -264,57 +212,44 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
     <title><?=$site_name?> | Order Confirmed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-text': '#1A1A1A', 'brand-gray': '#6B7280', 'brand-red': '#EF4444', }, fontFamily: { 'sans': ['Inter', 'ui-sans-serif', 'system-ui'], 'serif': ['Cormorant Garamond', 'serif'], } } } };
+      tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-text': '#1A1A1A', 'brand-gray': '#6B7280', }, fontFamily: { 'sans': ['Inter', 'ui-sans-serif', 'system-ui'], 'serif': ['Cormorant Garamond', 'serif'], } } } };
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/feather-icons"></script>
 </head>
 <body class="bg-brand-bg font-sans text-brand-text">
-<!-- MAIN SUCCESS CONTENT -->
 <main class="bg-brand-bg">
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
         <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-sm p-8 md:p-12 text-center">
-            
             <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                 <i data-feather="check" class="w-8 h-8 text-green-600"></i>
             </div>
-
             <h1 class="mt-6 text-3xl md:text-4xl font-serif font-semibold text-brand-text">Thank you for your order!</h1>
-            
             <p class="mt-4 text-brand-gray">
                 Hi <?= htmlspecialchars(explode(' ', $customerName)[0]) ?>, your order has been confirmed. A confirmation email with the full details has been sent to <span class="font-medium text-brand-text"><?= htmlspecialchars($customerEmail) ?></span>.
             </p>
-
             <div class="mt-8 bg-brand-bg border border-gray-200 rounded-lg p-4">
                 <p class="text-sm text-brand-gray">Your Order Number is:</p>
                 <p class="text-xl font-bold font-mono tracking-wider text-brand-text mt-1"><?= htmlspecialchars($order['order_number']) ?></p>
             </div>
-            
             <div class="mt-10 flex flex-col sm:flex-row justify-center gap-4">
                 <a href="/shop" class="w-full sm:w-auto bg-brand-text text-white py-3 px-6 rounded-md text-sm font-semibold hover:bg-gray-800 transition-colors">
                     Continue Shopping
                 </a>
-                
                 <a href="/invoice?order_number=<?= urlencode($order['order_number']) ?>" target="_blank" class="w-full sm:w-auto bg-transparent text-brand-text border border-gray-300 py-3 px-6 rounded-md text-sm font-semibold hover:bg-gray-100 transition-colors">
                     Download Invoice
                 </a>
             </div>
-
         </div>
     </div>
 </main>
-
-<!-- FOOTER -->
 <footer class="bg-white border-t border-gray-200">
     <div class="p-6 text-center">
         <p class="text-xs text-brand-gray">© <?=date('Y')?> <?=$site_name?>. All Rights Reserved.</p>
     </div>
 </footer>
-
 <script>
     feather.replace();
 </script>
-
 </body>
 </html>

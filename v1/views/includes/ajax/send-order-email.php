@@ -3,29 +3,26 @@
 /**
  * Main function to format and send an entire order notification to WhatsApp.
  *
- * @param array  $orderItems        An array of items fetched from your database.
- * @param string $config['recipient_number'] The website owner's number (e.g., 'whatsapp:+911234567890').
- * @param string $config['website_url']      The base URL of your site (e.g., 'https://yourwebsite.com').
- * @param string $config['images_path']      The public path to images (e.g., '/images/products/').
- * @param string $config['twilio_sid']       Your Twilio Account SID.
- * @param string $config['twilio_token']     Your Twilio Auth Token.
- * @param string $config['twilio_number']    Your Twilio WhatsApp-enabled number.
+ * @param array $orderItems   An array of items fetched from your database.
+ * @param array $config       An array of configuration values (Twilio credentials, URLs, etc.).
+ * @param array $orderDetails An array with order-level details like 'order_number', 'shipping_fee', 'grand_total'.
+ * @param array $buyerDetails An array containing buyer info like 'name' and 'phone'.
  */
-function sendOrderNotificationToWhatsApp(array $orderItems, array $config) {
+function sendOrderNotificationToWhatsApp(array $orderItems, array $config, array $orderDetails, array $buyerDetails = []) {
     // Exit if there is nothing to process
-    if (empty($orderItems)) {
+    if (empty($orderItems) || empty($orderDetails)) {
+        error_log("WhatsApp Error: Missing order items or order details.");
         return;
     }
 
-    $orderId = $orderItems[0]['order_id'];
+    $orderNumber = $orderDetails['order_number'] ?? 'N/A';
 
     // --- Build the main text message ---
     $message = "🎉 *New Order Received!* 🎉\n";
-    $message .= "_Order ID: " . htmlspecialchars($orderId) . "_\n\n";
+    $message .= "_Order #: " . htmlspecialchars($orderNumber) . "_\n\n";
     $message .= "-----------------------------------\n\n";
 
     $itemCounter = 1;
-    $totalValue = 0;
 
     foreach ($orderItems as $item) {
         // --- Send the image for this item FIRST ---
@@ -52,12 +49,32 @@ function sendOrderNotificationToWhatsApp(array $orderItems, array $config) {
         if (!empty($item['custom_size_details'])) $message .= "- _Size (Custom):_ " . htmlspecialchars($item['custom_size_details']) . "\n";
         
         $message .= "\n"; // Space between items
-
-        $totalValue += $item['quantity'] * $item['price_per_unit'];
     }
 
+    // --- MODIFIED: Build the final financial summary ---
     $message .= "-----------------------------------\n";
-    $message .= "*Total Order Value: $" . number_format($totalValue, 2) . "*";
+    $message .= "Subtotal: $" . number_format($orderDetails['subtotal'], 2) . "\n";
+    $message .= "Shipping: $" . number_format($orderDetails['shipping_fee'], 2) . "\n";
+
+    if (!empty($orderDetails['discount_amount']) && $orderDetails['discount_amount'] > 0) {
+        $message .= "Discount: -$" . number_format($orderDetails['discount_amount'], 2) . "\n";
+    }
+
+    $message .= "*Grand Total: $" . number_format($orderDetails['grand_total'], 2) . "*\n\n";
+    // --- END MODIFIED ---
+
+    // --- Include buyer details if they are provided ---
+    if (!empty($buyerDetails)) {
+        $message .= "👤 *Buyer Information:*\n";
+        if (!empty($buyerDetails['name'])) {
+            $message .= "- Name: " . htmlspecialchars($buyerDetails['name']) . "\n";
+        }
+        // This includes the customer's phone number
+        if (!empty($buyerDetails['phone'])) {
+            $message .= "- Phone: " . htmlspecialchars($buyerDetails['phone']) . "\n";
+        }
+        $message .= "\n"; // Add a final space after the buyer info block
+    }
 
     // --- Send the final consolidated text message ---
     sendWhatsAppMessage(
@@ -87,7 +104,6 @@ function sendWhatsAppMessage($accountSid, $authToken, $twilioNumber, $recipientN
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_USERPWD, $accountSid . ":" . $authToken);
     
-    // For debugging: curl_setopt($ch, CURLOPT_VERBOSE, true);
     $response = curl_exec($ch);
     curl_close($ch);
     
@@ -118,52 +134,3 @@ function sendWhatsAppImage($accountSid, $authToken, $twilioNumber, $recipientNum
     
     return $response;
 }
-
-
-// =================================================================
-// HOW TO USE IT
-// =================================================================
-
-/*
-// 1. First, fetch your order data from the database into an array.
-//    (This database query part goes in your main application logic)
-$orderItemsFromDB = [
-    [
-        'order_id' => 12345,
-        'product_name' => 'Modern Armchair',
-        'product_image' => 'armchair.jpg',
-        'quantity' => 1,
-        'price_per_unit' => 250.00,
-        'color_name' => 'Charcoal Gray',
-        'custom_color_name' => '',
-        'size_name' => 'Standard',
-        'custom_size_details' => ''
-    ],
-    [
-        'order_id' => 12345,
-        'product_name' => 'Hand-Woven Rug',
-        'product_image' => 'rug.jpg',
-        'quantity' => 1,
-        'price_per_unit' => 120.00,
-        'color_name' => '',
-        'custom_color_name' => '#A0522D',
-        'size_name' => '',
-        'custom_size_details' => '200cm x 300cm'
-    ]
-];
-
-// 2. Set up your configuration array.
-$whatsappConfig = [
-    'recipient_number' => 'whatsapp:+15558675309', // The website owner's number
-    'website_url'      => 'https://yourwebsite.com',
-    'images_path'      => '/images/products/',
-    'twilio_sid'       => 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', // Your Twilio SID
-    'twilio_token'     => 'your_auth_token_xxxxxxxxxxxxxx',  // Your Twilio Auth Token
-    'twilio_number'    => 'whatsapp:+14155238886'          // Your Twilio Number
-];
-
-// 3. Call the function. That's it!
-sendOrderNotificationToWhatsApp($orderItemsFromDB, $whatsappConfig);
-
-echo "Notification sent!";
-*/

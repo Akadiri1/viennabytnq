@@ -19,8 +19,13 @@ if (empty($cartItems)) {
 
 $subtotal = array_sum(array_column($cartItems, 'total_price'));
 
-// Fetch shipping locations
+// Fetch shipping locations for the dropdown
 $shippingLocations = selectContent($conn, "shipping_fees", ['is_active' => TRUE]);
+
+// Assuming these variables are defined elsewhere for your header/footer
+$logo_directory = $logo_directory ?? 'path/to/your/logo.png';
+$site_name = $site_name ?? 'Your Site Name';
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -44,7 +49,7 @@ tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-t
 </head>
 <body class="bg-brand-bg font-sans text-brand-text">
 
-<!-- Header section from your provided code -->
+<!-- HEADER -->
 <section class="relative h-48 md:h-56 bg-cover bg-center" style="background-image: url('images/IMG_63900471.jpg');">
     <div class="absolute inset-0 bg-black/40"></div>
     <header class="absolute inset-x-0 top-0 z-20"><div class="container mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center justify-center h-20"><a href="/home"><img src="<?=$logo_directory?>" alt="<?=$site_name?> Logo" class="h-10 w-auto filter brightness-0 invert"></a></div></div></header>
@@ -56,7 +61,7 @@ tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-t
 
 <!-- Left Column: Customer Information & Shipping -->
 <div class="w-full">
-<form id="checkout-form" class="space-y-12">
+<form id="checkout-form" class="space-y-12" onsubmit="return false;">
     <div>
         <div class="step-header"><div class="step-circle">1</div><h2>Contact Information</h2></div>
         <div><label for="email" class="block text-sm font-medium text-brand-gray mb-1">Email Address</label><input type="email" id="email" name="email" class="form-input-sleek" placeholder="you@example.com" required></div>
@@ -65,11 +70,13 @@ tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-t
         <div class="step-header"><div class="step-circle">2</div><h2>Shipping Address</h2></div>
         <div class="space-y-6">
             <div><label for="full-name" class="block text-sm font-medium text-brand-gray mb-1">Full Name</label><input type="text" id="full-name" name="full-name" class="form-input-sleek" placeholder="Jane Doe" required></div>
+            <!-- Phone Number is here, as requested -->
+            <div><label for="phone-number" class="block text-sm font-medium text-brand-gray mb-1">Phone Number</label><input type="tel" id="phone-number" name="phone-number" class="form-input-sleek" placeholder="e.g. 08012345678" required></div>
             <div><label for="address" class="block text-sm font-medium text-brand-gray mb-1">Address</label><input type="text" id="address" name="address" class="form-input-sleek" placeholder="123 Main Street" required></div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-6">
                 <div><label for="city" class="block text-sm font-medium text-brand-gray mb-1">City</label><input type="text" id="city" name="city" class="form-input-sleek" required></div>
                 <div><label for="state" class="block text-sm font-medium text-brand-gray mb-1">State / Province</label><input type="text" id="state" name="state" class="form-input-sleek" required></div>
-                <div><label for="zip" class="block text-sm font-medium text-brand-gray mb-1">ZIP / Postal Code</label><input type="text" id="zip" name="zip" class="form-input-sleek" required></div>
+                <!-- <div><label for="zip" class="block text-sm font-medium text-brand-gray mb-1">ZIP / Postal Code</label><input type="text" id="zip" name="zip" class="form-input-sleek" required></div> -->
             </div>
             <div><label for="country" class="block text-sm font-medium text-brand-gray mb-1">Country</label><input type="text" id="country" name="country" class="form-input-sleek" value="Nigeria" required></div>
              <div>
@@ -126,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     feather.replace();
 
     // --- STATE ---
-    let cartSubtotal = <?= $subtotal ?>;
+    let cartSubtotal = <?= (float)$subtotal ?>;
     let shippingFee = 0;
     let discountAmount = 0;
     
@@ -155,16 +162,16 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.summarySubtotal.textContent = formatCurrency(cartSubtotal);
         selectors.summaryDiscount.textContent = `- ${formatCurrency(discountAmount)}`;
         selectors.summaryShipping.textContent = formatCurrency(shippingFee);
-        selectors.summaryTotal.textContent = formatCurrency(grandTotal);
+        selectors.summaryTotal.textContent = formatCurrency(grandTotal > 0 ? grandTotal : 0);
     };
 
     const loadCartItems = () => {
         const itemsHtml = `<?php foreach ($cartItems as $item) {
             $options = '';
-            if ($item['color_name']) $options .= $item['color_name'];
-            elseif ($item['custom_color_name']) $options .= 'Custom: ' . $item['custom_color_name'];
-            if ($item['size_name']) $options .= ' / ' . $item['size_name'];
-            elseif ($item['custom_size_details'] && $item['custom_size_details'] !== '{}') $options .= ' / Custom Size';
+            if (!empty($item['color_name'])) $options .= $item['color_name'];
+            elseif (!empty($item['custom_color_name'])) $options .= 'Custom: ' . $item['custom_color_name'];
+            if (!empty($item['size_name'])) $options .= ($options ? ' / ' : '') . $item['size_name'];
+            elseif (!empty($item['custom_size_details']) && $item['custom_size_details'] !== '{}') $options .= ($options ? ' / ' : '') . 'Custom Size';
             echo '<div class="flex justify-between items-start gap-4"><div class="relative flex-shrink-0"><img src="' . htmlspecialchars($item['product_image']) . '" alt="' . htmlspecialchars($item['product_name']) . '" class="w-20 h-24 object-cover rounded-md border border-gray-200"><span class="absolute -top-2 -right-2 bg-brand-gray text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">' . $item['quantity'] . '</span></div><div class="flex-1"><h3 class="font-semibold text-sm">' . htmlspecialchars($item['product_name']) . '</h3><p class="text-xs text-brand-gray">' . htmlspecialchars($options) . '</p></div><p class="font-medium text-sm">' . '₦' . number_format($item['total_price'], 2) . '</p></div>';
         } ?>`;
         selectors.summaryItemsContainer.innerHTML = itemsHtml;
@@ -174,8 +181,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const code = selectors.discountCodeInput.value.trim();
         if (!code) return;
 
+        selectors.applyDiscountBtn.disabled = true;
         try {
-            const response = await fetch('apply-discount', {
+            const response = await fetch('apply-discount', { // Assumes you have an apply-discount endpoint
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ discountCode: code, subtotal: cartSubtotal })
@@ -185,24 +193,27 @@ document.addEventListener('DOMContentLoaded', () => {
             selectors.discountFeedback.textContent = result.message || '';
             if (result.status === 'success') {
                 discountAmount = parseFloat(result.discountAmount);
-                selectors.discountFeedback.classList.remove('text-brand-red');
+                selectors.discountFeedback.classList.remove('text-red-600');
                 selectors.discountFeedback.classList.add('text-green-600');
                 showToast('Discount applied successfully!');
             } else {
                 discountAmount = 0;
-                selectors.discountFeedback.classList.add('text-brand-red');
+                selectors.discountFeedback.classList.add('text-red-600');
                 selectors.discountFeedback.classList.remove('text-green-600');
             }
             updateOrderSummary();
         } catch (error) {
             console.error('Discount Error:', error);
             showToast('Could not apply discount code.', 'error');
+        } finally {
+            selectors.applyDiscountBtn.disabled = false;
         }
     };
     
     const placeOrderAndPay = async () => {
         if (!selectors.checkoutForm.checkValidity()) {
             selectors.checkoutForm.reportValidity();
+            showToast('Please fill in all required fields.', 'error');
             return;
         }
 
@@ -211,14 +222,18 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerHTML = `<i data-feather="loader" class="w-5 h-5 animate-spin"></i> Processing...`;
         feather.replace();
 
+        // **IMPORTANT**: This object matches the structure your place-order.php script expects.
         const formData = {
             email: document.getElementById('email').value,
-            fullName: document.getElementById('full-name').value,
-            address: document.getElementById('address').value,
-            city: document.getElementById('city').value,
-            state: document.getElementById('state').value,
-            zip: document.getElementById('zip').value,
-            country: document.getElementById('country').value,
+            shippingAddress: {
+                fullName: document.getElementById('full-name').value,
+                phoneNumber: document.getElementById('phone-number').value, // Phone number is nested here
+                address: document.getElementById('address').value,
+                city: document.getElementById('city').value,
+                state: document.getElementById('state').value,
+                // zip: document.getElementById('zip').value,
+                country: document.getElementById('country').value,
+            },
             shippingId: selectors.shippingLocation.value,
             discountCode: selectors.discountCodeInput.value.trim()
         };
@@ -238,7 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Order Placement Error:', error);
-            showToast(error.toString(), 'error');
+            showToast(error.message, 'error');
             btn.disabled = false;
             btn.innerHTML = `<i data-feather="lock" class="w-4 h-4"></i><span>Pay Now</span>`;
             feather.replace();
@@ -247,13 +262,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const payWithPaystack = (email, amountKobo, reference) => {
         let handler = PaystackPop.setup({
-            key: 'pk_test_ded4f29b2932a767eccd8c1a145355bb09e0f34a', // IMPORTANT: Replace with your Paystack Public Key
+            key: 'pk_test_ded4f29b2932a767eccd8c1a145355bb09e0f34a', // IMPORTANT: Replace with your LIVE Paystack Public Key
             email: email,
             amount: amountKobo,
             currency: 'NGN',
             ref: reference,
             callback: function(response) {
-                // Redirect to our server for verification
+                // Redirect to your server for verification
                 window.location.href = 'verify-payment?reference=' + response.reference;
             },
             onClose: function() {
@@ -277,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selectors.applyDiscountBtn.addEventListener('click', applyDiscount);
     selectors.payButton.addEventListener('click', placeOrderAndPay);
     
-    // Initial Load
+    // --- INITIAL LOAD ---
     loadCartItems();
     updateOrderSummary();
 });

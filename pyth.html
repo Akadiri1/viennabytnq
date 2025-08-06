@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pyth Network Logo with Tailwind CSS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 flex flex-col items-center justify-center min-h-screen p-8 antialiased">
+
+    <div class="text-center mb-12">
+        <h1 class="text-3xl font-bold text-white">Recommended Method: SVG</h1>
+        <p class="text-gray-400 mt-2">Accurate, scalable, and best practice.</p>
+    </div>
+
+    <!-- Pyth Logo Component -->
+    <div class="flex items-center space-x-4">
+        <!-- The Logo SVG -->
+        <svg
+            class="w-16 h-16 md:w-20 md:h-20" <!-- Sizing controlled by Tailwind -->
+            viewBox="0 0 98 98"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <!-- 1. Define the Gradient -->
+            <defs>
+                <linearGradient id="pyth-gradient" x1="0" y1="0" x2="98" y2="98" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#26F2FF"/> <!-- Start color (Teal) -->
+                    <stop offset="1" stop-color="#6C4DF4"/> <!-- End color (Purple) -->
+                </linearGradient>
+            </defs>
+            
+            <!-- 2. Apply the Gradient to the Logo Path -->
+            <path
+                fill="url(#pyth-gradient)" <!-- Use the gradient defined above -->
+                d="M40.0122 97.7282C27.8485 97.7282 17.8482 87.7279 17.8482 75.5642V22.164C17.8482 9.99994 27.8485 0 40.0122 0H52.1762C59.9882 0 66.5682 6.58 66.5682 14.392V31.8682C66.5682 39.6802 59.9882 4
