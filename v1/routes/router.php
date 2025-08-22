@@ -84,6 +84,10 @@ if (count($uri) > 2) {
     include APP_PATH."/views/login.php";
     break;
 
+     case 'privacy':
+    include APP_PATH."/views/privacy.php";
+    break;
+
      case 'order-view':
     include APP_PATH."/views/order-view.php";
     break;
@@ -92,11 +96,36 @@ if (count($uri) > 2) {
     include APP_PATH."/views/order-view.php";
     break;
 
+     case 'currency?'.$query_string:
+    include APP_PATH."/views/currency.php";
+    break;
+
+    case 'country_states?'.$query_string:
+    include APP_PATH."/views/country_states.php";
+    break;
+
+     case 'fetch-collection?'.$query_string:
+    include APP_PATH."/views/includes/ajax/fetch-collection.php";
+    break;
+
+    case 'shop?collection='.$query_string:
+    include APP_PATH."/views/shop.php";
+    break;
+
     case 'create_users':
     include APP_PATH."/views/create_users.php";
     break;
 
     case 'shop':
+      if (!headers_sent()) {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+      }
+      include APP_PATH."/views/shop.php";
+      break;
+
+      case 'shop?'.$query_string:
       if (!headers_sent()) {
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
         header('Pragma: no-cache');
@@ -235,9 +264,30 @@ if (count($uri) > 2) {
     include APP_PATH."/views/contact.php";
     break;
 
-    case 'about-us':
+    case 'about':
     include APP_PATH."/views/about.php";
     break;
+
+    case 'auth':
+    include APP_PATH."/views/auth.php";
+    break;
+
+     case 'logout':
+    include APP_PATH."/views/logout.php";
+    break;
+
+     case 'user-dashboard':
+    include APP_PATH."/views/user-dashboard.php";
+    break;
+
+     case 'signin':
+    include APP_PATH."/views/signin.php";
+    break;
+
+     case 'register':
+    include APP_PATH."/views/register.php";
+    break;
+
 
     case "services":
     include APP_PATH."/views/services.php";

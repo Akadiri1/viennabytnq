@@ -3,8 +3,6 @@ $homeVideo = selectContent($conn, 'home_video', ['visibility' => 'show']);
 $videoSrc = $homeVideo[0]['video_url'];
 $videoText = $homeVideo[0]['video_text'];
 ?>
-
-
 <html class="js" lang="en">
       <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -772,7 +770,7 @@ body.preloading {
             <div class="header logo-left-menu-center header-1-lines">
               <div id="main-site-header">
                 <div class="header-nav-desktop">
-                  <!-- <div class="js-mobile-menu menu-bar desktop-navigation">
+                 <!--  <div class="js-mobile-menu menu-bar desktop-navigation">
                     <span class="icon">
                       <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
                         <defs>
@@ -793,7 +791,7 @@ body.preloading {
                         </g>
                       </svg>
                     </span>
-                  </div> -->
+                  </div> --> 
                 </div>
                 <a href="/home" aria-label="VIENNA-RTW US" class="logo-slogan">
                     <!-- We removed the incorrect "color" style and added the CSS filter -->
@@ -801,41 +799,150 @@ body.preloading {
                       src="<?=$logo_directory?>" 
                       alt="VIENNA-RTW US" 
                       style="max-width: 140px; height: auto; filter: brightness(0) invert(1);">
-                    <span>VIENNABYTNQ</span>
+                    <span>VIENNA BY TNQ</span>
                   </a>
+                  <?php
+// Start the session to remember the user's choice on the server
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+function getLiveUsdToNgnRate() {
+    $apiUrl = 'https://api.exchangerate.host/latest?base=USD&symbols=NGN';
+    $response = @file_get_contents($apiUrl);
+    if ($response) {
+        $data = json_decode($response, true);
+        if (isset($data['rates']['NGN'])) {
+            return floatval($data['rates']['NGN']);
+        }
+    }
+    // Fallback in case API fails
+    return 1533.04; // Last known rate
+}
+
+// Define exchange rate constant (only once)
+if (!defined('USD_EXCHANGE_RATE')) {
+    define('USD_EXCHANGE_RATE', getLiveUsdToNgnRate());
+}
+
+// Set the active currency
+if (isset($_SESSION['currency'])) {
+    $current_currency = $_SESSION['currency'];
+} elseif (isset($_COOKIE['user_currency'])) {
+    $current_currency = $_COOKIE['user_currency'];
+} else {
+    $current_currency = 'NGN'; // Default currency
+}
+// ===================================================================
+?>
+
+<!-- Add some simple styling for the currency switcher -->
+<style>
+    .currency-switcher a {
+        color: #fff; /* brand-gray */
+        font-weight: 500;
+        transition: color 0.2s ease-in-out;
+    }
+    .currency-switcher a:hover {
+        color: #1A1A1A; /* brand-text */
+    }
+    .currency-switcher a.active {
+        color: #fff; /* brand-text */
+        font-weight: 700;
+        text-decoration: underline;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- CURRENCY SWITCHER LOGIC ---
+
+    // 1. Get variables from PHP
+    const USD_RATE = <?= USD_EXCHANGE_RATE ?>;
+    const INITIAL_CURRENCY = '<?= $current_currency ?>';
+
+    const currencyLinks = document.querySelectorAll('.currency-switcher a.currency-link');
+    
+    /**
+     * Formats a number into a currency string (e.g., $27.59 or ₦40,000.00)
+     * @param {number} amount - The numeric value.
+     * @param {string} currency - 'USD' or 'NGN'.
+     * @returns {string} The formatted currency string.
+     */
+    function formatPrice(amount, currency) {
+        if (currency === 'USD') {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        }
+        // Default to NGN
+        return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount).replace('NGN', '₦');
+    }
+
+    /**
+     * Finds all price elements on the page and updates them to the target currency.
+     * @param {string} targetCurrency - The currency to convert to ('USD' or 'NGN').
+     */
+    function updateAllPrices(targetCurrency) {
+        const priceElements = document.querySelectorAll('.price-display');
+
+        priceElements.forEach(el => {
+            const ngnPrice = parseFloat(el.dataset.priceNgn);
+            if (!isNaN(ngnPrice)) {
+                let newPrice = ngnPrice;
+                if (targetCurrency === 'USD') {
+                    newPrice = ngnPrice / USD_RATE;
+                }
+                el.textContent = formatPrice(newPrice, targetCurrency);
+            }
+        });
+    }
+
+    // 2. Add click listeners to the currency links
+    currencyLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetCurrency = this.dataset.currency;
+
+            // Update the active link style
+            currencyLinks.forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+
+            // Convert all prices on the page
+            updateAllPrices(targetCurrency);
+
+            // Set a cookie to remember the choice for 30 days
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + 30);
+            document.cookie = `user_currency=${targetCurrency}; expires=${expiryDate.toUTCString()}; path=/`;
+
+            // Inform the server to update the session
+            fetch('/currency', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currency: targetCurrency })
+            });
+        });
+    });
+
+    // 3. On page load, if the initial currency is USD, run the conversion immediately.
+    if (INITIAL_CURRENCY === 'USD') {
+        updateAllPrices('USD');
+    }
+
+});
+</script>
                 <div class="controls-container">
-                  <ul class="header-control">
-                    <li class="box-minicart">
-                      <div class="minicart">
-                        <div class="cart-block box-has-content">
-                          <a href="view-cart" class="push_side header-icon" title="Cart">
-                            <!--?xml version="1.0" ?--><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                             <!--  <defs>
-                                <style>
-                                  .cls-1 {
-                                    fill: none;
-                                  }
-                                </style>
-                              </defs> -->
-                              <title></title>
-                              <g data-name="Layer 2" id="Layer_2">
-                                <path d="M23.52,29h-15a5.48,5.48,0,0,1-5.31-6.83L6.25,9.76a1,1,0,0,1,1-.76H24a1,1,0,0,1,1,.7l3.78,12.16a5.49,5.49,0,0,1-.83,4.91A5.41,5.41,0,0,1,23.52,29ZM8,11,5.11,22.65A3.5,3.5,0,0,0,8.48,27h15a3.44,3.44,0,0,0,2.79-1.42,3.5,3.5,0,0,0,.53-3.13L23.28,11Z"></path>
-                                <path d="M20,17a1,1,0,0,1-1-1V8a3,3,0,0,0-6,0v8a1,1,0,0,1-2,0V8A5,5,0,0,1,21,8v8A1,1,0,0,1,20,17Z"></path>
-                              </g>
-                              <g id="frame">
-                                <rect class="cls-1" height="32" width="32"></rect>
-                              </g>
-                            </svg>
-                            <span class="header__counter js-cart-count" data-js-cart-count="0">0</span>
-                          </a>
-                          <span data-total-price="" class="total-price"><span class="text">Cart: </span>
-                            <span class="js-total-price"> $0.00</span>
-                          </span>
-                        </div>
-                      </div>
+                <ul class="header-control">
+                    
+                    <!-- NEW: Currency Switcher -->
+                    <li class="currency-switcher mr-4">
+                        <a href="#" class="currency-link <?= ($current_currency === 'NGN') ? 'active' : '' ?>" data-currency="NGN">NGN</a>
+                        <span class="mx-1">/</span>
+                        <a href="#" class="currency-link <?= ($current_currency === 'USD') ? 'active' : '' ?>" data-currency="USD">USD</a>
                     </li>
-                  </ul>
-                </div>
+                    <!-- End of Currency Switcher -->
+                </ul>
+            </div>
               </div>
               <style>
                 .controls-container {
@@ -1090,51 +1197,57 @@ body.preloading {
             class="shopify-section collection_grid cms_section type_collection_grid zoom_img">
             <section id="laber_collection_featured_grid_ztbCVH" class="cat_size_3 pad-5">
               <div class="full-width">
-                <div class="row">
-                  <!-- SS25 Collection -->
-                   <?php foreach ($homeProduct as $key => $value):?>
-                      
-                       <div id="bk_collection_REVHyG"
-                         class="laber_banner cat_grid_item cat_space_item cat_grid_item_1 col-md-4 col-12 pad"
-                         style="margin-bottom:20px;">
-                         <div class="cat_grid_item__content">
-                           <a href="<?= $value['input_link'] ?>" class="cat_grid_item__link">
-                             <div data-image-effect="" class="pr_lazy_img main-img laber_bg_lz lazyloaded"
-                               style="padding-top: 150%; background-image: url('<?= $value['input_image'] ?>');">
-                             </div>
-                             <span class="icon">
-                               <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                                 <defs>
-                                   <style>
-                                     .cls-1 {
-                                       fill: none;
-                                     }
-                                   </style>
-                                 </defs>
-                                 <g data-name="Layer 2" id="Layer_2">
-                                   <path
-                                     d="M19,26a1,1,0,0,1-.71-.29,1,1,0,0,1,0-1.42L26.59,16l-8.3-8.29a1,1,0,0,1,1.42-1.42l9,9a1,1,0,0,1,0,1.42l-9,9A1,1,0,0,1,19,26Z">
-                                   </path>
-                                   <path d="M28,17H4a1,1,0,0,1,0-2H28a1,1,0,0,1,0,2Z"></path>
-                                 </g>
-                                 <g id="frame">
-                                   <rect class="cls-1" height="32" width="32"></rect>
-                                 </g>
-                               </svg>
-                             </span>
-                           </a>
-                           <div class="cat_grid_item__wrapper text_center v_bottom h_center">
-                             <div class="cat_grid_item__title style_1">
-                               <a href="<?= $value['input_link'] ?>" style="color: white;">
-                                 Shop Now
-                                 <span class="cat_grid_item__count"></span>
-                               </a>
-                             </div>
-                           </div>
-                         </div>
-                       </div>
-                   <?php endforeach;?>
 
+<div class="row">
+    <!-- Loop through your collections -->
+    <?php 
+    $collections = selectContent($conn, "collections", [], "ORDER BY name ASC");
+
+$collectionsWithData = [];
+foreach ($collections as $collection) {
+    // For each collection, find the first product to get its image
+    $productStmt = $conn->prepare("
+        SELECT image_one 
+        FROM panel_products 
+        WHERE collection_id = ? AND visibility = 'show' AND image_one IS NOT NULL AND image_one != '' 
+        ORDER BY id DESC LIMIT 1
+    ");
+    $productStmt->execute([$collection['id']]);
+    $firstProductImage = $productStmt->fetchColumn();
+
+    // If an image is found, add it to our collection array. Otherwise, use a placeholder.
+    $collection['display_image'] = $firstProductImage ?: 'path/to/your/placeholder.jpg'; // IMPORTANT: Set a fallback image path
+    $collectionsWithData[] = $collection;
+}
+    ?>
+    <?php foreach ($collectionsWithData as $collection):?>
+        <div id="collection_<?= htmlspecialchars($collection['id']) ?>"
+            class="laber_banner cat_grid_item cat_space_item cat_grid_item_1 col-md-4 col-12 pad"
+            style="margin-bottom:20px;">
+            <div class="cat_grid_item__content">
+                <!-- ** MODIFIED: The link now points to the shop page with a collection filter ** -->
+                <a href="/shop" class="cat_grid_item__link">
+                    <div data-image-effect="" class="pr_lazy_img main-img laber_bg_lz lazyloaded"
+                        style="padding-top: 150%; background-image: url('<?= htmlspecialchars($collection['display_image']) ?>');">
+                    </div>
+                    <span class="icon">
+                        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                            <g data-name="Layer 2"><path d="M19,26a1,1,0,0,1-.71-.29,1,1,0,0,1,0-1.42L26.59,16l-8.3-8.29a1,1,0,0,1,1.42-1.42l9,9a1,1,0,0,1,0,1.42l-9,9A1,1,0,0,1,19,26Z"></path><path d="M28,17H4a1,1,0,0,1,0-2H28a1,1,0,0,1,0,2Z"></path></g>
+                        </svg>
+                    </span>
+                </a>
+                <div class="cat_grid_item__wrapper text_center v_bottom h_center">
+                    <div class="cat_grid_item__title style_1">
+                        <!-- ** MODIFIED: The link and text now use the collection name ** -->
+                        <a href="/shop" style="color: white;">
+                            <?= htmlspecialchars($collection['name']) ?>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endforeach;?>
+</div>
                 </div>
               </div>
             </section>
@@ -1231,15 +1344,15 @@ body.preloading {
                       border-color: #1a1a1a;
                     }
                   </style>
-                  <!-- <div class="footer-iteam col-lg-12 col-md-12 col-12 h_center v_ text_center">
+                  <div class="footer-iteam col-lg-12 col-md-12 col-12 h_center v_ text_center">
                     <aside id="block_menu_iKNmTF" class="widget widget_nav_menu">
                       <div class="menu_footer widget_footer">
                         <ul class="menu">
                           <li class="menu-item">
-                            <a href="">Privacy Policy
+                            <a href="/privacy">Privacy & Policy
                             </a>
                           </li>
-                          <li class="menu-item">
+                          <!-- <li class="menu-item">
                             <a href="">Shipping Policy
                             </a>
                           </li>
@@ -1253,11 +1366,11 @@ body.preloading {
                           </li>
                           <li class="menu-item">
                             <a href="">Contact Us </a>
-                          </li>
+                          </li> -->
                         </ul>
                       </div>
                     </aside>
-                  </div> -->
+                  </div>
                   <div class="footer-iteam col-lg-12 col-md-12 col-12 flex h_center text_center">
                     <aside id="block_html_RdrcRa" class="widget widget_text">
                       <div class="textwidget widget_footer">

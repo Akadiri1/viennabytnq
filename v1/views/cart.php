@@ -1,4 +1,34 @@
 <?php
+// --- NEW: CURRENCY CONFIGURATION (Copied from checkout) ---
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+function getLiveUsdToNgnRate() {
+    $apiUrl = 'https://api.exchangerate.host/latest?base=USD&symbols=NGN';
+    $response = @file_get_contents($apiUrl);
+    if ($response) {
+        $data = json_decode($response, true);
+        if (isset($data['rates']['NGN'])) {
+            return floatval($data['rates']['NGN']);
+        }
+    }
+    // Fallback in case API fails
+    return 1533.04; // Last known rate
+}
+
+if (!defined('USD_EXCHANGE_RATE')) {
+    define('USD_EXCHANGE_RATE', getLiveUsdToNgnRate());
+}
+
+if (isset($_SESSION['currency'])) {
+    $current_currency = $_SESSION['currency'];
+} elseif (isset($_COOKIE['user_currency'])) {
+    $current_currency = $_COOKIE['user_currency'];
+} else {
+    $current_currency = 'NGN'; // Default currency
+}
+
 // We need the cookie logic here too, in case a user lands on this page first.
 $cookie_name = 'cart_token';
 $thirty_days = time() + (86400 * 30);
@@ -28,6 +58,8 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <style>
         .toastify { padding: 12px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; box-shadow: 0 3px 6px -1px rgba(0,0,0,.12), 0 10px 36px -4px rgba(51,45,45,.25); }
+        /* --- NEW: CURRENCY SWITCHER STYLE --- */
+        .currency-switcher a.active { background-color: #1A1A1A; color: white; }
     </style>
 </head>
 <body class="bg-brand-bg font-sans text-brand-text">
@@ -48,7 +80,7 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
             <div class="flex-1 flex justify-start"><button id="open-sidebar-btn" class="p-2 text-brand-text hover:text-brand-gray"><i data-feather="menu" class="h-6 w-6"></i></button></div>
             <div class="flex-shrink-0 text-center"><a href="/home"><div class="text-2xl font-serif font-bold tracking-widest"><?=$site_name?></div></a></div>
             <div class="flex-1 flex items-center justify-end space-x-4">
-                <a href="#" class="p-2 text-brand-text hover:text-brand-gray relative">
+                <a href="/view-cart" class="p-2 text-brand-text hover:text-brand-gray relative">
                     <i data-feather="shopping-bag" class="h-5 w-5"></i>
                     <span id="header-cart-count" class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-brand-red text-white text-xs flex items-center justify-center font-bold" style="font-size: 8px; display: none;">0</span>
                 </a>
@@ -68,7 +100,7 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
             </ol>
         </nav>
         <h1 class="text-5xl md:text-6xl font-serif font-semibold mt-4">Your Cart</h1>
-    </div>
+    </div>  
 </section>
 
 <!-- MAIN CART CONTENT -->
@@ -76,19 +108,32 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
         <div id="cart-layout" class="lg:grid lg:grid-cols-3 lg:gap-12">
             
-            <!-- Left Column: Cart Items -->
-            <section class="lg:col-span-2" id="cart-container">
-                <!-- This section will be populated by JavaScript -->
-            </section>
+            <section class="lg:col-span-2" id="cart-container"><!-- Populated by JS --></section>
 
-            <!-- Right Column: Order Summary -->
             <aside class="mt-12 lg:mt-0 lg:col-span-1">
                 <div class="bg-white rounded-lg shadow-sm p-6 lg:p-8 sticky top-24">
-                    <h2 class="text-xl font-serif font-semibold border-b border-gray-200 pb-4">Order Summary</h2>
+                    <!-- --- NEW: ADDED CURRENCY SWITCHER --- -->
+                    <div class="flex justify-between items-center border-b border-gray-200 pb-4">
+                        <h2 class="text-xl font-serif font-semibold">Order Summary</h2>
+                        <div class="currency-switcher flex items-center border border-gray-300 rounded-full text-sm font-medium">
+                            <a href="#" data-currency="NGN" class="px-3 py-1 rounded-full <?= ($current_currency === 'NGN') ? 'active' : '' ?>">NGN</a>
+                            <a href="#" data-currency="USD" class="px-3 py-1 rounded-full <?= ($current_currency === 'USD') ? 'active' : '' ?>">USD</a>
+                        </div>
+                    </div>
                     <dl class="mt-6 space-y-4">
-                        <div class="flex items-center justify-between"><dt class="text-sm text-brand-gray">Subtotal</dt><dd id="summary-subtotal" class="text-sm font-medium text-brand-text">₦0.00</dd></div>
-                        <div class="flex items-center justify-between"><dt class="text-sm text-brand-gray">Shipping</dt><dd class="text-sm font-medium text-brand-text">Calculated at next step</dd></div>
-                        <div class="border-t border-gray-200 pt-4 flex items-center justify-between"><dt class="text-base font-semibold">Order total</dt><dd id="summary-ordertotal" class="text-base font-semibold">₦0.00</dd></div>
+                        <!-- --- MODIFIED: Added price-display class and data attributes --- -->
+                        <div class="flex items-center justify-between">
+                            <dt class="text-sm text-brand-gray">Subtotal</dt>
+                            <dd id="summary-subtotal" class="text-sm font-medium text-brand-text price-display" data-price-ngn="0">₦0.00</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-sm text-brand-gray">Shipping</dt>
+                            <dd class="text-sm font-medium text-brand-text">Calculated at next step</dd>
+                        </div>
+                        <div class="border-t border-gray-200 pt-4 flex items-center justify-between">
+                            <dt class="text-base font-semibold">Order total</dt>
+                            <dd id="summary-ordertotal" class="text-base font-semibold price-display" data-price-ngn="0">₦0.00</dd>
+                        </div>
                     </dl>
                     <div class="mt-8"><a href="checkout" id="checkout-link" class="block w-full bg-brand-text text-white py-3 px-4 rounded-md text-center font-semibold hover:bg-gray-800 transition-colors">Proceed to Checkout</a></div>
                     <p class="text-xs text-center text-brand-gray mt-4">Taxes and shipping calculated at checkout</p>
@@ -108,29 +153,47 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     feather.replace();
-
-    const selectors = {
-        cartContainer: document.getElementById('cart-container'),
-        summarySubtotalEl: document.getElementById('summary-subtotal'),
-        summaryOrdertotalEl: document.getElementById('summary-ordertotal'),
-        headerCartCountEl: document.getElementById('header-cart-count'),
-        checkoutLink: document.getElementById('checkout-link'),
-        cartLayout: document.getElementById('cart-layout'),
-        sidebar: document.getElementById('sidebar'),
-        openSidebarBtn: document.getElementById('open-sidebar-btn'),
-        closeSidebarBtn: document.getElementById('close-sidebar-btn'),
-        sidebarOverlay: document.getElementById('sidebar-overlay')
+    const selectors = { cartContainer: document.getElementById('cart-container'), summarySubtotalEl: document.getElementById('summary-subtotal'), summaryOrdertotalEl: document.getElementById('summary-ordertotal'), headerCartCountEl: document.getElementById('header-cart-count'), checkoutLink: document.getElementById('checkout-link'), cartLayout: document.getElementById('cart-layout'), sidebar: document.getElementById('sidebar'), openSidebarBtn: document.getElementById('open-sidebar-btn'), closeSidebarBtn: document.getElementById('close-sidebar-btn'), sidebarOverlay: document.getElementById('sidebar-overlay') };
+    const showToast = (text, type = "success") => { Toastify({ text, duration: 2500, newWindow: true, close: true, gravity: "top", position: "right", stopOnFocus: true, style: { background: type === "success" ? "linear-gradient(to right, #00b09b, #96c93d)" : "linear-gradient(to right, #ff5f6d, #ffc371)", "font-size": "14px" } }).showToast(); };
+    
+    // --- NEW: CURRENCY LOGIC ---
+    const USD_RATE = <?= USD_EXCHANGE_RATE ?>;
+    const INITIAL_CURRENCY = '<?= $current_currency ?>';
+    
+    const formatCurrency = (amount, currency) => {
+        if (currency === 'USD') {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        }
+        return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount).replace('NGN', '₦');
     };
 
-    const showToast = (text, type = "success") => {
-        const background = type === "success" ? "linear-gradient(to right, #00b09b, #96c93d)" : "linear-gradient(to right, #ff5f6d, #ffc371)";
-        Toastify({ text, duration: 2500, newWindow: true, close: true, gravity: "top", position: "right", stopOnFocus: true, style: { background, "font-size": "14px" } }).showToast();
-    };
+    function updateAllPrices(targetCurrency) {
+        document.querySelectorAll('.price-display').forEach(el => {
+            const ngnPrice = parseFloat(el.dataset.priceNgn);
+            if (!isNaN(ngnPrice)) {
+                let newPrice = (targetCurrency === 'USD') ? ngnPrice / USD_RATE : ngnPrice;
+                el.textContent = formatCurrency(newPrice, targetCurrency);
+            }
+        });
+    }
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 2 }).format(amount);
-    };
+    // --- NEW: CURRENCY SWITCHER EVENT LISTENER ---
+    document.querySelector('.currency-switcher').addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('a');
+        if (!target || target.classList.contains('active')) return;
+        const newCurrency = target.dataset.currency;
+        document.querySelectorAll('.currency-switcher a').forEach(a => a.classList.remove('active'));
+        target.classList.add('active');
+        updateAllPrices(newCurrency);
+        fetch('/currency', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'currency=' + newCurrency
+        }).catch(error => console.error('Error updating currency on server:', error));
+    });
 
+    // --- MODIFIED: renderCart function to support currency switching ---
     const renderCart = (cartData) => {
         selectors.cartContainer.innerHTML = '';
         let subtotal = cartData.subtotal || 0;
@@ -138,55 +201,41 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (lineItemCount === 0) {
             selectors.cartLayout.classList.remove('lg:grid');
-            selectors.cartContainer.innerHTML = `
-                <div class="text-center bg-white rounded-lg shadow-sm p-12">
-                     <i data-feather="shopping-bag" class="w-16 h-16 text-gray-300 mx-auto mb-4"></i>
-                     <h2 class="text-2xl font-serif font-semibold text-brand-text">Your cart is empty</h2>
-                     <p class="mt-2 text-sm text-brand-gray">Looks like you haven't added anything to your cart yet.</p>
-                     <a href="/shop" class="mt-6 inline-block bg-brand-text text-white py-2 px-6 rounded-md text-sm font-semibold hover:bg-gray-800 transition-colors">
-                        Continue Shopping
-                     </a>
-                </div>`;
+            selectors.cartContainer.innerHTML = `<div class="text-center bg-white rounded-lg shadow-sm p-12"><i data-feather="shopping-bag" class="w-16 h-16 text-gray-300 mx-auto mb-4"></i><h2 class="text-2xl font-serif font-semibold text-brand-text">Your cart is empty</h2><p class="mt-2 text-sm text-brand-gray">Looks like you haven't added anything to your cart yet.</p><a href="/shop" class="mt-6 inline-block bg-brand-text text-white py-2 px-6 rounded-md text-sm font-semibold hover:bg-gray-800 transition-colors">Continue Shopping</a></div>`;
         } else {
             selectors.cartLayout.classList.add('lg:grid');
-            const cartItemsHTML = `
-                <h2 class="sr-only">Shopping Cart Items</h2>
-                <div class="hidden md:grid grid-cols-6 gap-4 text-left text-xs font-medium text-brand-gray tracking-wider uppercase border-b border-gray-200 pb-3">
-                    <div class="col-span-3">Product</div><div class="col-span-1 text-center">Price</div><div class="col-span-1 text-center">Quantity</div><div class="col-span-1 text-right">Total</div>
-                </div>
-                <ul role="list" class="divide-y divide-gray-200">
-                    ${cartData.items.map(item => {
-                        let optionsHtml = '';
-                        if (item.color_name) optionsHtml += `${item.color_name}`; else if (item.custom_color_name) optionsHtml += `Custom: ${item.custom_color_name}`;
-                        if (item.size_name) optionsHtml += ` / ${item.size_name}`; else if (item.custom_size_details && item.custom_size_details !== '{}') optionsHtml += ' / Custom Size';
-                        
-                        return `
-                            <li class="py-6 flex flex-col md:grid md:grid-cols-6 md:gap-4 md:items-center" data-id="${item.id}" data-quantity="${item.quantity}">
-                                <div class="flex items-center space-x-4 col-span-3">
-                                    <img src="${item.product_image}" alt="${item.product_name}" class="w-24 h-32 object-cover rounded-md">
-                                    <div><h3 class="text-base font-medium text-brand-text">${item.product_name}</h3><p class="mt-1 text-sm text-brand-gray">${optionsHtml}</p></div>
+            const cartItemsHTML = `<h2 class="sr-only">Shopping Cart Items</h2><div class="hidden md:grid grid-cols-6 gap-4 text-left text-xs font-medium text-brand-gray tracking-wider uppercase border-b border-gray-200 pb-3"><div class="col-span-3">Product</div><div class="col-span-1 text-center">Price</div><div class="col-span-1 text-center">Quantity</div><div class="col-span-1 text-right">Total</div></div><ul role="list" class="divide-y divide-gray-200">${cartData.items.map(item => {
+                let optionsHtml = '';
+                if (item.color_name) { optionsHtml += item.color_name;
+                } else if (item.custom_color_name) { optionsHtml += `Custom: ${item.custom_color_name}`; }
+                if (item.size_name) { optionsHtml += (optionsHtml ? ' / ' : '') + item.size_name;
+                } else if (item.custom_size_details && item.custom_size_details !== '{}') { optionsHtml += (optionsHtml ? ' / ' : '') + 'Custom Size'; }
+                
+                // MODIFIED: Added price-display class and data-price-ngn attributes to the generated HTML
+                return `<li class="py-6 flex flex-col md:grid md:grid-cols-6 md:gap-4 md:items-center" data-id="${item.id}" data-quantity="${item.quantity}">
+                            <div class="flex items-center space-x-4 col-span-3">
+                                <img src="${item.product_image}" alt="${item.product_name}" class="w-24 h-32 object-cover rounded-md">
+                                <div><h3 class="text-base font-medium text-brand-text">${item.product_name}</h3><p class="mt-1 text-sm text-brand-gray">${optionsHtml}</p></div>
+                            </div>
+                            <div class="mt-4 md:mt-0 flex justify-between items-center col-span-3">
+                                <p class="text-sm text-brand-text md:text-center md:col-span-1 price-display" data-price-ngn="${item.unit_price}"></p>
+                                <div class="flex items-center border border-gray-300 rounded-md md:col-span-1 md:mx-auto">
+                                    <button class="quantity-minus p-2 text-brand-gray hover:text-brand-text"><i data-feather="minus" class="w-4 h-4"></i></button>
+                                    <input type="text" value="${item.quantity}" class="w-10 text-center bg-transparent border-none focus:ring-0" readonly>
+                                    <button class="quantity-plus p-2 text-brand-gray hover:text-brand-text"><i data-feather="plus" class="w-4 h-4"></i></button>
                                 </div>
-                                <div class="mt-4 md:mt-0 flex justify-between items-center col-span-3">
-                                    <p class="text-sm text-brand-text md:text-center md:col-span-1">${formatCurrency(item.total_price / item.quantity)}</p>
-                                    <div class="flex items-center border border-gray-300 rounded-md md:col-span-1 md:mx-auto">
-                                        <button class="quantity-minus p-2 text-brand-gray hover:text-brand-text"><i data-feather="minus" class="w-4 h-4"></i></button>
-                                        <input type="text" value="${item.quantity}" class="w-10 text-center bg-transparent border-none focus:ring-0" readonly>
-                                        <button class="quantity-plus p-2 text-brand-gray hover:text-brand-text"><i data-feather="plus" class="w-4 h-4"></i></button>
-                                    </div>
-                                    <div class="flex items-center space-x-3">
-                                        <p class="text-base font-semibold text-brand-text text-right md:col-span-1">${formatCurrency(item.total_price)}</p>
-                                        <button class="remove-item p-1 text-brand-gray hover:text-brand-red"><i data-feather="trash-2" class="w-4 h-4"></i></button>
-                                    </div>
+                                <div class="flex items-center space-x-3">
+                                    <p class="text-base font-semibold text-brand-text text-right md:col-span-1 price-display" data-price-ngn="${item.total_price}"></p>
+                                    <button class="remove-item p-1 text-brand-gray hover:text-brand-red"><i data-feather="trash-2" class="w-4 h-4"></i></button>
                                 </div>
-                            </li>`;
-                    }).join('')}
-                </ul>
-                <div class="mt-8"><a href="/shop" class="inline-flex items-center text-sm font-medium text-brand-text hover:text-brand-gray group"><i data-feather="arrow-left" class="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1"></i>Continue Shopping</a></div>`;
+                            </div>
+                        </li>`;}).join('')}</ul><div class="mt-8"><a href="/shop" class="inline-flex items-center text-sm font-medium text-brand-text hover:text-brand-gray group"><i data-feather="arrow-left" class="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1"></i>Continue Shopping</a></div>`;
             selectors.cartContainer.innerHTML = cartItemsHTML;
         }
-
-        selectors.summarySubtotalEl.textContent = formatCurrency(subtotal);
-        selectors.summaryOrdertotalEl.textContent = formatCurrency(subtotal);
+        
+        // MODIFIED: Set data attributes for summary and then update all prices
+        selectors.summarySubtotalEl.dataset.priceNgn = subtotal;
+        selectors.summaryOrdertotalEl.dataset.priceNgn = subtotal;
         
         if (lineItemCount > 0) {
             selectors.headerCartCountEl.textContent = lineItemCount;
@@ -196,84 +245,26 @@ document.addEventListener('DOMContentLoaded', () => {
             selectors.headerCartCountEl.style.display = 'none';
             selectors.checkoutLink.classList.add('pointer-events-none', 'opacity-50');
         }
-
         feather.replace();
+        
+        // NEW: Call updateAllPrices to format all new and existing prices correctly
+        const activeCurrency = document.querySelector('.currency-switcher a.active').dataset.currency;
+        updateAllPrices(activeCurrency);
     };
 
-    const fetchCart = async () => {
-        try {
-            const response = await fetch('update-cart', { method: 'POST' });
-            if (!response.ok) throw new Error('Failed to fetch cart.');
-            const cartData = await response.json();
-            if (cartData.status === 'success') {
-                renderCart(cartData);
-            } else {
-                showToast(cartData.message || 'Error loading cart.', 'error');
-            }
-        } catch (error) {
-            console.error('Fetch Cart Error:', error);
-            showToast('Could not connect to cart service.', 'error');
-        }
-    };
+    const fetchCart = async () => { try { const response = await fetch('update-cart', { method: 'POST' }); if (!response.ok) throw new Error('Failed to fetch cart.'); const cartData = await response.json(); if (cartData.status === 'success') { renderCart(cartData); } else { showToast(cartData.message || 'Error loading cart.', 'error'); } } catch (error) { console.error('Fetch Cart Error:', error); showToast('Could not connect to cart service.', 'error'); } };
+    const updateQuantity = async (itemId, newQuantity) => { try { const response = await fetch('update-quantity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartItemId: itemId, quantity: newQuantity }) }); const result = await response.json(); if (!response.ok || result.status !== 'success') { throw new Error(result.message || 'Failed to update quantity.'); } await fetchCart(); } catch (error) { console.error('Update Quantity Error:', error); showToast(error.toString(), 'error'); await fetchCart(); } };
+    const deleteItem = async (itemId) => { try { const response = await fetch('delete-cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartItemId: itemId }) }); const result = await response.json(); if (response.ok && result.status === 'success') { showToast(result.message); await fetchCart(); } else { throw new Error(result.message || 'Failed to delete item.'); } } catch (error) { console.error('Delete Item Error:', error); showToast(error.toString(), 'error'); } };
     
-    const updateQuantity = async (itemId, newQuantity) => {
-        try {
-            const response = await fetch('update-quantity', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cartItemId: itemId, quantity: newQuantity })
-            });
-            const result = await response.json();
-            if (!response.ok || result.status !== 'success') {
-                throw new Error(result.message || 'Failed to update quantity.');
-            }
-            await fetchCart(); // Re-fetch the whole cart to get updated totals
-        } catch (error) {
-            console.error('Update Quantity Error:', error);
-            showToast(error.toString(), 'error');
-            await fetchCart(); // Re-sync with server state on error
-        }
-    };
-
-    const deleteItem = async (itemId) => {
-        try {
-            const response = await fetch('delete-cart', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cartItemId: itemId })
-            });
-            const result = await response.json();
-            if (response.ok && result.status === 'success') {
-                showToast(result.message);
-                await fetchCart();
-            } else {
-                throw new Error(result.message || 'Failed to delete item.');
-            }
-        } catch (error) {
-            console.error('Delete Item Error:', error);
-            showToast(error.toString(), 'error');
-        }
-    };
-
     selectors.cartContainer.addEventListener('click', (e) => {
         const target = e.target;
         const parentLi = target.closest('li');
         if (!parentLi) return;
-
         const itemId = parseInt(parentLi.dataset.id);
         let currentQuantity = parseInt(parentLi.dataset.quantity);
-
-        if (target.closest('.quantity-plus')) {
-            updateQuantity(itemId, currentQuantity + 1);
-        }
-        if (target.closest('.quantity-minus')) {
-            if (currentQuantity > 1) {
-                updateQuantity(itemId, currentQuantity - 1);
-            }
-        }
-        if (target.closest('.remove-item')) {
-            deleteItem(itemId);
-        }
+        if (target.closest('.quantity-plus')) { updateQuantity(itemId, currentQuantity + 1); }
+        if (target.closest('.quantity-minus')) { if (currentQuantity > 1) { updateQuantity(itemId, currentQuantity - 1); } }
+        if (target.closest('.remove-item')) { deleteItem(itemId); }
     });
 
     const toggleSidebar = (shouldOpen) => { if (selectors.sidebar) { if(shouldOpen) { selectors.sidebar.classList.remove('-translate-x-full'); document.body.classList.add('overflow-hidden'); } else { selectors.sidebar.classList.add('-translate-x-full'); document.body.classList.remove('overflow-hidden'); } } };
@@ -281,7 +272,9 @@ document.addEventListener('DOMContentLoaded', () => {
     selectors.closeSidebarBtn.addEventListener('click', () => toggleSidebar(false));
     selectors.sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') toggleSidebar(false); });
-
+    
+    // --- NEW: Run initial price formatting and then fetch the cart ---
+    updateAllPrices(INITIAL_CURRENCY);
     fetchCart();
 });
 </script>
