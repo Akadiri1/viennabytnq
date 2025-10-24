@@ -1,6 +1,4 @@
 <?php
-// File: cart.php (The Backend Processor)
-
 // --- THE FIX: START THE SESSION TO ACCESS $_SESSION['user_id'] ---
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
@@ -8,9 +6,6 @@ if (session_status() == PHP_SESSION_NONE) {
 // --- END FIX ---
 
 header('Content-Type: application/json');
-
-// Your database connection needs to be included here.
-//require_once 'includes/db_connection.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -89,13 +84,13 @@ try {
 
     // 5. --- CHECK FOR EXISTING ITEM, UPDATE, OR INSERT ---
     $checkSql = "SELECT id, quantity FROM cart_items WHERE
-                    cart_token = :cart_token AND
-                    product_id = :product_id AND
-                    (color_name <=> :color_name) AND
-                    (custom_color_name <=> :custom_color_name) AND
-                    (size_name <=> :size_name) AND
-                    (custom_size_details <=> :custom_size_details)
-                LIMIT 1";
+                     cart_token = :cart_token AND
+                     product_id = :product_id AND
+                     (color_name <=> :color_name) AND
+                     (custom_color_name <=> :custom_color_name) AND
+                     (size_name <=> :size_name) AND
+                     (custom_size_details <=> :custom_size_details)
+                 LIMIT 1";
     $checkStmt = $conn->prepare($checkSql);
     $checkStmt->execute([':cart_token' => $cartToken, ':product_id' => $productId, ':color_name' => $colorName, ':custom_color_name' => $customColor, ':size_name' => $sizeName, ':custom_size_details' => $customSizeDetails]);
     $existingItem = $checkStmt->fetch(PDO::FETCH_ASSOC);
@@ -135,6 +130,7 @@ try {
 } catch (PDOException $e) {
     error_log('Cart Add/Update Error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'A database error occurred.']);
+    // *** FIX 2: TEMPORARILY OUTPUT THE ACTUAL PDO ERROR FOR DEBUGGING ***
+    echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>

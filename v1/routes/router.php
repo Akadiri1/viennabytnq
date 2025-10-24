@@ -84,6 +84,10 @@ if (count($uri) > 2) {
     include APP_PATH."/views/login.php";
     break;
 
+    case 'admin_login'.$query_string:
+    include APP_PATH."/views/admin_login.php";
+    break;
+
      case 'privacy':
     include APP_PATH."/views/privacy.php";
     break;
@@ -153,6 +157,10 @@ if (count($uri) > 2) {
 
       case 'checkout':
       include APP_PATH."/views/checkout.php";
+      break;
+
+       case 'compressor':
+      include APP_PATH."/views/compressor.php";
       break;
 
       case 'dashboard':

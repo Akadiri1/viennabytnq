@@ -35,13 +35,50 @@ $phoneNumber = htmlspecialchars(trim($shippingData['phoneNumber'] ?? ''), ENT_QU
 $address = htmlspecialchars(trim($shippingData['address'] ?? ''), ENT_QUOTES, 'UTF-8');
 $city = htmlspecialchars(trim($shippingData['city'] ?? ''), ENT_QUOTES, 'UTF-8');
 $state = htmlspecialchars(trim($shippingData['state'] ?? ''), ENT_QUOTES, 'UTF-8');
-$zip = htmlspecialchars(trim($shippingData['zip'] ?? ''), ENT_QUOTES, 'UTF-8');
+$postalCode = htmlspecialchars(trim($shippingData['postalCode'] ?? ($shippingData['zip'] ?? '')), ENT_QUOTES, 'UTF-8');
 $country = htmlspecialchars(trim($shippingData['country'] ?? ''), ENT_QUOTES, 'UTF-8');
 
 // Validate all required fields
 if (!$email || empty($fullName) || empty($phoneNumber) || empty($address) || empty($city) || empty($state)) {
-    send_json_error('Please fill in all required fields, including your phone number.');
+    send_json_error('Please fill in all required fields, including your phone number and state/province.');
 }
+// Additional: ensure state is not just whitespace
+if (trim($state) === '') {
+    send_json_error('State/Province is required.');
+}
+
+
+// Country-specific phone format validation
+$phonePatterns = [
+    'NG' => '/^(\+234|0)?[789][01]\d{8}$/',
+    'US' => '/^(\+1|1)?[2-9]\d{2}[2-9]\d{2}\d{4}$/',
+    'GB' => '/^(\+44|0)?[1-9]\d{8,9}$/',
+    'CA' => '/^(\+1|1)?[2-9]\d{2}[2-9]\d{2}\d{4}$/',
+    'AU' => '/^(\+61|0)?[2-9]\d{8}$/',
+    'DE' => '/^(\+49|0)?[1-9]\d{10,11}$/',
+    'FR' => '/^(\+33|0)?[1-9]\d{8}$/',
+    'IN' => '/^(\+91|0)?[6-9]\d{9}$/',
+    'ZA' => '/^(\+27|0)?[1-9]\d{8,9}$/',
+    // Add more as needed
+];
+$countryCode = '';
+if (preg_match('/\+?(\d{1,3})/', $phoneNumber, $matches)) {
+    $prefix = $matches[1];
+    $codeMap = [
+        '234' => 'NG', '1' => 'US', '44' => 'GB', '61' => 'AU', '49' => 'DE', '33' => 'FR', '91' => 'IN', '27' => 'ZA',
+        // Add more as needed
+    ];
+    $countryCode = $codeMap[$prefix] ?? '';
+}
+if (empty($countryCode) && isset($shippingData['country'])) {
+    // Try to use country from shipping address if available
+    $countryCode = strtoupper(substr($shippingData['country'], 0, 2));
+}
+$pattern = $phonePatterns[$countryCode] ?? '/^\+?[1-9]\d{7,14}$/';
+if (!preg_match($pattern, $phoneNumber)) {
+    send_json_error('Invalid phone number format for country ' . ($countryCode ?: 'selected') . '.');
+}
+
 
 // MODIFIED: Create the JSON string including the phone number
 $shippingAddress = json_encode([
@@ -50,7 +87,8 @@ $shippingAddress = json_encode([
     'address' => $address,
     'city' => $city,
     'state' => $state,
-    'zip' => $zip,
+    'postalCode' => $postalCode,
+    'zip' => $postalCode,
     'country' => $country
 ]);
 
@@ -91,6 +129,10 @@ if (!empty($input['discountCode'])) {
 }
 
 $grandTotal = ($subtotal - $discountAmount) + $shippingFee;
+
+if ($grandTotal <= 0) {
+    send_json_error('Order total must be greater than zero.');
+}
 
 // --- 4. CREATE ORDER IN DATABASE (No changes needed here, it uses the modified $shippingAddress variable) ---
 $conn->beginTransaction();

@@ -1,5 +1,6 @@
 <?php
 // Include your DB connection and any necessary functions.
+// NOTE: Ensure your database connection ($conn) is properly set up here.
 // require_once 'path/to/your/db_connection.php';
 
 // Set headers for JSON response
@@ -23,11 +24,15 @@ if ($search !== '') {
     $where .= " AND name LIKE ?";
     $params[] = "%$search%";
 }
+// Sorting is now based on the base price column only
 $order = "ORDER BY id DESC";
 if ($sort === 'price-asc') $order = "ORDER BY price ASC";
 if ($sort === 'price-desc') $order = "ORDER BY price DESC";
 
+// --- Assuming $conn (PDO connection) is available from db_connection.php ---
+
 // Get total count for pagination
+// Use price column for sorting logic within the database
 $countStmt = $conn->prepare("SELECT COUNT(*) FROM panel_products $where");
 $countStmt->execute($params);
 $totalProducts = $countStmt->fetchColumn();
@@ -43,22 +48,14 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $productsHtml = '';
 if ($products) {
     foreach ($products as $product) {
+        // --- Preparation Logic ---
         $isSoldOut = (!isset($product['stock_quantity']) || $product['stock_quantity'] <= 0);
 
-        // Fetch colors (this remains the same)
-        $colorStmt = $conn->prepare("SELECT c.hex_code FROM product_colors pc JOIN colors c ON pc.color_id = c.id WHERE pc.product_id = ?");
-        $colorStmt->execute([$product['id']]);
-        $colors = $colorStmt->fetchAll(PDO::FETCH_COLUMN);
-        
-        // Fetch price variants
-        $variantStmt = $conn->prepare("SELECT variant_name, price FROM product_price_variants WHERE product_id = ? ORDER BY price ASC");
-        $variantStmt->execute([$product['id']]);
-        $priceVariants = $variantStmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Determine the display price for sorting purposes
-        $displayPrice = !empty($priceVariants) ? $priceVariants[0]['price'] : $product['price'];
+        // Price variants and colors are removed, so the display price is just the base price
+        $displayPrice = $product['price'];
         
         // --- Card HTML Building with Conditional Logic ---
+        // data-price is now the base price
         $productsHtml .= '<div class="product-card" data-price="'.htmlspecialchars($displayPrice).'">';
         
         $openingTag = $isSoldOut 
@@ -85,30 +82,20 @@ if ($products) {
 
         // Product info
         $productsHtml .= '<div class="pt-4 text-center">';
+
+        // Display product name
         $productsHtml .= '<h3 class="text-base font-medium text-brand-text mb-2">'.htmlspecialchars($product['name']).'</h3>';
         
-        // --- THE FIX: ADDED class="price-display" and data-price-ngn="..." ---
+        // Price display
         $productsHtml .= '<div class="text-sm text-brand-gray space-y-1">';
-        if (!empty($priceVariants)) {
-            foreach($priceVariants as $variant) {
-                $productsHtml .= '<p class="price-display" data-price-ngn="' . htmlspecialchars($variant['price']) . '">' . htmlspecialchars($variant['variant_name']) . ' - ₦' . number_format($variant['price'], 2) . '</p>';
-            }
-        } else {
-            $productsHtml .= '<p class="price-display" data-price-ngn="' . htmlspecialchars($product['price']) . '">₦' . number_format($product['price'], 2) . '</p>';
-        }
-        $productsHtml .= '</div>';
-        // --- END OF FIX ---
         
-        if (!$isSoldOut && !empty($colors)) {
-            $productsHtml .= '<div class="flex justify-center space-x-2 mt-3">';
-            foreach ($colors as $color) {
-                $productsHtml .= '<span class="block w-4 h-4 rounded-full border border-gray-300" style="background-color: '.htmlspecialchars($color).';"></span>';
-            }
-            $productsHtml .= '</div>';
-        }
+        // Single price display (since variants are removed)
+        $productsHtml .= '<p class="price-display" data-price-ngn="' . htmlspecialchars($product['price']) . '">₦' . number_format($product['price'], 2) . '</p>';
+        
+        $productsHtml .= '</div>';
         
         $productsHtml .= '</div>'; // End of text-center div
-        $productsHtml .= $closingTag; // Use the closing tag (</div> or </a>)
+        $productsHtml .= $closingTag; // Use the closing tag (</div> or <a>)
         $productsHtml .= '</div>'; // End of product-card
     }
 } else {

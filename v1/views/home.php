@@ -742,7 +742,7 @@ body.preloading {
     setTimeout(function() {
         isTimerFinished = true;
         hidePreloader(); // Attempt to hide preloader
-    }, 4000); // 4000 milliseconds = 4 seconds
+    }, 1000); // 4000 milliseconds = 4 seconds
 
 </script>
     <div class="page-load circle-loadding" style="display: none;"><span></span></div>

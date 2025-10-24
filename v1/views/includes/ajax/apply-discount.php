@@ -2,10 +2,11 @@
 header('Content-Type: application/json');
 
 $input = json_decode(file_get_contents('php://input'), true);
-$code = $input['discountCode'] ?? '';
-$subtotal = $input['subtotal'] ?? 0;
+$code = isset($input['discountCode']) ? trim((string)$input['discountCode']) : '';
+$subtotal = isset($input['subtotal']) && is_numeric($input['subtotal']) ? (float)$input['subtotal'] : 0.0;
+if ($subtotal < 0) { $subtotal = 0.0; }
 
-if (empty($code)) {
+if ($code === '') {
     echo json_encode(['status' => 'error', 'message' => 'Please enter a code.']);
     exit;
 }
@@ -21,7 +22,7 @@ if ($discount) {
     } else {
         $discountAmount = $discount['discount_value'];
     }
-    echo json_encode(['status' => 'success', 'discountAmount' => $discountAmount]);
+    echo json_encode(['status' => 'success', 'discountAmount' => (float)$discountAmount]);
 } else {
     echo json_encode(['status' => 'error', 'message' => 'Invalid or expired discount code.']);
 }

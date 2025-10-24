@@ -7,6 +7,12 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+// Admin authentication
+if (!isset($_SESSION['admin_logged_in'])) {
+    header('Location: /admin_login');
+    exit();
+}
+
 // Uncomment this block in production to secure your page
 // if (!isset($_SESSION['user_id'])) {
 //     header('Location: /login');
@@ -25,7 +31,6 @@ define('UPLOAD_PATH_WEB', 'uploads/');
 // POST ACTION HANDLER
 // =================================================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-
     // --- UNIVERSAL DELETE ACTION ---
     if ($_POST['action'] === 'delete') {
         $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
@@ -208,15 +213,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add_color' || $_POST['action'] === 'edit_color') { $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT); $name = htmlspecialchars(trim($_POST['name'])); $hex_code = htmlspecialchars(trim($_POST['hex_code'])); if ($_POST['action'] === 'add_color') { $conn->prepare("INSERT INTO colors (name, hex_code) VALUES (?, ?)")->execute([$name, $hex_code]); $_SESSION['success_message'] = "Color added."; } else { $conn->prepare("UPDATE colors SET name = ?, hex_code = ? WHERE id = ?")->execute([$name, $hex_code, $id]); $_SESSION['success_message'] = "Color updated."; } header('Location: /dashboard?page=colors'); exit; }
     if ($_POST['action'] === 'add_size' || $_POST['action'] === 'edit_size') { $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT); $name = htmlspecialchars(trim($_POST['name'])); if ($_POST['action'] === 'add_size') { $conn->prepare("INSERT INTO sizes (name) VALUES (?)")->execute([$name]); $_SESSION['success_message'] = "Size added."; } else { $conn->prepare("UPDATE sizes SET name = ? WHERE id = ?")->execute([$name, $id]); $_SESSION['success_message'] = "Size updated."; } header('Location: /dashboard?page=sizes'); exit; }
     if ($_POST['action'] === 'add_collection' || $_POST['action'] === 'edit_collection') { $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT); $name = htmlspecialchars(trim($_POST['name'])); if ($_POST['action'] === 'add_collection') { $conn->prepare("INSERT INTO collections (name) VALUES (?)")->execute([$name]); $_SESSION['success_message'] = "Collection added."; } else { $conn->prepare("UPDATE collections SET name = ? WHERE id = ?")->execute([$name, $id]); $_SESSION['success_message'] = "Collection updated."; } header('Location: /dashboard?page=collections'); exit; }
-}
+
+    if ($_POST['action'] === 'delete_order') {
+        $order_number = $_POST['order_number'] ?? '';
+        if ($order_number) {
+            // Delete the order and associated data (adjust according to your database schema)
+            // Note: This is a simplified example. You may need to delete from multiple tables.
+            $stmt = $conn->prepare("DELETE FROM orders WHERE order_number = ?");
+            $stmt->execute([$order_number]);
+            $_SESSION['success_message'] = "Order deleted successfully.";
+        } else {
+            $_SESSION['error_message'] = "Invalid order number.";
+        }
+        header('Location: ' . $_SERVER['HTTP_REFERER']);
+        exit;
+    }
+
+    if ($_POST['action'] === 'logout') {
+        session_destroy();
+        header('Location: /admin_login');
+        exit;
+    }
+} // Close the POST handler block
 
 // =================================================================================================
 // GET DATA FETCHER
 // =================================================================================================
 $page = $_GET['page'] ?? 'dashboard';
-if ($page === 'dashboard') { $totalRevenue = $conn->query("SELECT SUM(grand_total) FROM orders WHERE order_status = 'paid'")->fetchColumn() ?? 0; $totalOrders = $conn->query("SELECT COUNT(id) FROM orders")->fetchColumn() ?? 0; $newCustomers = $conn->query("SELECT COUNT(id) FROM customers WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")->fetchColumn() ?? 0; $averageOrderValue = ($totalOrders > 0) ? $totalRevenue / $totalOrders : 0; $recentOrders = $conn->query("SELECT o.order_number, o.grand_total, o.order_status, o.created_at, c.full_name FROM orders o JOIN customers c ON o.customer_id = c.id ORDER BY o.created_at DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC); }
-if ($page === 'manage_products') { $products = $conn->query("SELECT * FROM panel_products ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC); }
+if ($page === 'dashboard') { 
+    $searchTerm = $_GET['search'] ?? '';
+    $whereClause = '';
+    $params = [];
+    if ($searchTerm) {
+        // Corrected WHERE clause for prepared statement (using backticks for table aliases)
+        $whereClause = "WHERE o.order_number LIKE ? OR c.full_name LIKE ? OR o.order_status LIKE ?";
+        $searchPattern = "%$searchTerm%";
+        $params = array_fill(0, 3, $searchPattern);
+    }
+    
+    // Simple queries don't need prepared statements if no user input is involved
+    $totalRevenue = $conn->query("SELECT SUM(grand_total) FROM orders WHERE order_status = 'paid'")->fetchColumn() ?? 0;
+    $totalOrders = $conn->query("SELECT COUNT(id) FROM orders")->fetchColumn() ?? 0;
+    $newCustomers = $conn->query("SELECT COUNT(id) FROM customers WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")->fetchColumn() ?? 0;
+    $averageOrderValue = ($totalOrders > 0) ? $totalRevenue / $totalOrders : 0;
+    
+    $recentOrdersQuery = "SELECT o.order_number, o.grand_total, o.order_status, o.created_at, c.full_name 
+                          FROM orders o 
+                          JOIN customers c ON o.customer_id = c.id 
+                          $whereClause 
+                          ORDER BY o.created_at DESC LIMIT 5";
+    $stmt = $conn->prepare($recentOrdersQuery);
+    $stmt->execute($params);
+    $recentOrders = $stmt->fetchAll(PDO::FETCH_ASSOC); 
+}
+
+// -------------------------------------------------------------------------------------------------
+
+if ($page === 'manage_products') { 
+    $searchTerm = $_GET['search'] ?? '';
+    $whereClause = '';
+    $params = [];
+    if ($searchTerm) {
+        $whereClause = "WHERE `name` LIKE ? OR `product_text` LIKE ?";
+        $searchPattern = "%$searchTerm%";
+        $params = [$searchPattern, $searchPattern];
+    }
+    
+    $itemsPerPage = 10;
+    $currentPage = isset($_GET['p']) ? max(1, intval($_GET['p'])) : 1;
+    $offset = ($currentPage - 1) * $itemsPerPage;
+    
+    // FIX: Use a prepared statement for the COUNT query if a WHERE clause is present
+    $countQuery = "SELECT COUNT(id) FROM panel_products $whereClause";
+    $countStmt = $conn->prepare($countQuery);
+    $countStmt->execute($params); // Execute with the parameters
+    $totalProducts = $countStmt->fetchColumn(); // Fetch the total count
+    
+    $totalPages = ceil($totalProducts / $itemsPerPage);
+    
+    // The LIMIT and OFFSET cannot be parameterized with placeholders, so they are injected directly.
+    // They are safe here because $itemsPerPage and $offset are calculated/hardcoded integers.
+    $productsQuery = "SELECT * FROM panel_products $whereClause ORDER BY id DESC LIMIT $itemsPerPage OFFSET $offset";
+    $stmt = $conn->prepare($productsQuery);
+    $stmt->execute($params); // Re-use the parameters for the main query
+    $products = $stmt->fetchAll(PDO::FETCH_ASSOC); 
+}
+
+// -------------------------------------------------------------------------------------------------
+
 if ($page === 'add_product') {
+    // Queries without user input can use query()
     $colors = $conn->query("SELECT * FROM colors ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $sizes = $conn->query("SELECT * FROM sizes ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
     $collections = $conn->query("SELECT * FROM collections ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -229,6 +315,7 @@ if ($page === 'add_product') {
             $stmt->execute([$editId]);
             $productToEdit = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($productToEdit) {
+                // Using prepared statements for all lookups with $editId
                 $stmtColors = $conn->prepare("SELECT color_id FROM product_colors WHERE product_id = ?"); $stmtColors->execute([$editId]); $productColors = $stmtColors->fetchAll(PDO::FETCH_COLUMN);
                 $stmtSizes = $conn->prepare("SELECT size_id FROM product_sizes WHERE product_id = ?"); $stmtSizes->execute([$editId]); $productSizes = $stmtSizes->fetchAll(PDO::FETCH_COLUMN);
                 $stmtImages = $conn->prepare("SELECT * FROM product_images WHERE product_id = ? ORDER BY id DESC"); $stmtImages->execute([$editId]); $productImages = $stmtImages->fetchAll(PDO::FETCH_ASSOC);
@@ -237,15 +324,59 @@ if ($page === 'add_product') {
         }
     }
 }
-if ($page === 'colors') { $colors = $conn->query("SELECT * FROM colors ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC); $colorToEdit = null; if (isset($_GET['edit_id'])) { $stmt = $conn->prepare("SELECT * FROM colors WHERE id = ?"); $stmt->execute([$_GET['edit_id']]); $colorToEdit = $stmt->fetch(PDO::FETCH_ASSOC); } }
-if ($page === 'sizes') { $sizes = $conn->query("SELECT * FROM sizes ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC); $sizeToEdit = null; if (isset($_GET['edit_id'])) { $stmt = $conn->prepare("SELECT * FROM sizes WHERE id = ?"); $stmt->execute([$_GET['edit_id']]); $sizeToEdit = $stmt->fetch(PDO::FETCH_ASSOC); } }
-if ($page === 'collections') { $collections = $conn->query("SELECT * FROM collections ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC); $collectionToEdit = null; if (isset($_GET['edit_id'])) { $stmt = $conn->prepare("SELECT * FROM collections WHERE id = ?"); $stmt->execute([$_GET['edit_id']]); $collectionToEdit = $stmt->fetch(PDO::FETCH_ASSOC); } }
+
+// -------------------------------------------------------------------------------------------------
+
+// Minor security and style improvements for other sections
+
+if ($page === 'colors') { 
+    $colors = $conn->query("SELECT * FROM colors ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC); 
+    $colorToEdit = null; 
+    if (isset($_GET['edit_id'])) { 
+        $editId = filter_input(INPUT_GET, 'edit_id', FILTER_VALIDATE_INT); // Validate input
+        if ($editId) {
+            $stmt = $conn->prepare("SELECT * FROM colors WHERE id = ?"); 
+            $stmt->execute([$editId]); 
+            $colorToEdit = $stmt->fetch(PDO::FETCH_ASSOC); 
+        }
+    } 
+}
+
+// -------------------------------------------------------------------------------------------------
+
+if ($page === 'sizes') { 
+    $sizes = $conn->query("SELECT * FROM sizes ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC); 
+    $sizeToEdit = null; 
+    if (isset($_GET['edit_id'])) { 
+        $editId = filter_input(INPUT_GET, 'edit_id', FILTER_VALIDATE_INT); // Validate input
+        if ($editId) {
+            $stmt = $conn->prepare("SELECT * FROM sizes WHERE id = ?"); 
+            $stmt->execute([$editId]); 
+            $sizeToEdit = $stmt->fetch(PDO::FETCH_ASSOC); 
+        }
+    } 
+}
+
+// -------------------------------------------------------------------------------------------------
+
+if ($page === 'collections') { 
+    $collections = $conn->query("SELECT * FROM collections ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC); 
+    $collectionToEdit = null; 
+    if (isset($_GET['edit_id'])) { 
+        $editId = filter_input(INPUT_GET, 'edit_id', FILTER_VALIDATE_INT); // Validate input
+        if ($editId) {
+            $stmt = $conn->prepare("SELECT * FROM collections WHERE id = ?"); 
+            $stmt->execute([$editId]); 
+            $collectionToEdit = $stmt->fetch(PDO::FETCH_ASSOC); 
+        }
+    } 
+}
 
 // =================================================================================================
 // HELPER FUNCTIONS
 // =================================================================================================
 function getStatusBadge($status) { $status = strtolower($status); $colorClasses = 'bg-gray-100 text-gray-800'; if (in_array($status, ['paid', 'show', 'completed'])) { $colorClasses = 'bg-green-100 text-green-800'; } elseif (in_array($status, ['pending', 'processing'])) { $colorClasses = 'bg-yellow-100 text-yellow-800'; } elseif (in_array($status, ['failed', 'hide', 'cancelled'])) { $colorClasses = 'bg-red-100 text-red-800'; } return '<span class="' . $colorClasses . ' text-xs font-medium me-2 px-2.5 py-1 rounded-full">' . htmlspecialchars(ucfirst($status)) . '</span>'; }
-
+// ... (rest of the file)
 ?>
 
 <!DOCTYPE html>
@@ -259,11 +390,11 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        :root { --sidebar-bg: #111827; --main-bg: #F9FAFB; --card-bg: #FFFFFF; --text-primary: #1F2937; --text-secondary: #6B7280; --accent-start: #6D28D9; --accent-end: #4F46E5; }
+        :root { --sidebar-bg: #0f172a; --main-bg: #F9FAFB; --card-bg: #FFFFFF; --text-primary: #1F2937; --text-secondary: #6B7280; --accent-start: #6D28D9; --accent-end: #4F46E5; }
         body { font-family: 'Poppins', sans-serif; background-color: var(--main-bg); }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeInUp { animation: fadeInUp 0.5s ease-out forwards; }
-        .sidebar { background-image: linear-gradient(180deg, var(--sidebar-bg) 0%, #1f2937 100%); }
+        .sidebar { background-image: linear-gradient(180deg, var(--sidebar-bg) 0%, #1f2937 100%); box-shadow: 0 0 15px rgba(0,0,0,0.1); }
         .sidebar-link { border-left: 3px solid transparent; transition: all 0.2s ease-in-out; }
         .sidebar-link:hover { background-color: rgba(255, 255, 255, 0.05); border-left-color: var(--accent-start); }
         .sidebar-link.active { background-image: linear-gradient(to right, var(--accent-start), var(--accent-end)); color: white; border-left-color: #A78BFA; }
@@ -291,6 +422,8 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
         .content-table tbody tr { border-bottom: 1px solid #E5E7EB; }
         .content-table tbody tr:hover { background-color: #F9FAFB; }
         .content-table tbody td { padding: 1rem 1.5rem; vertical-align: middle; }
+        /* New styles for header */
+        header { background-color: white; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
     </style>
 </head>
 
@@ -324,7 +457,7 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
                     <a href="?page=collections" class="sidebar-link flex items-center px-4 py-3 rounded-lg"><i class="fa-solid fa-fw fa-layer-group w-5 h-5"></i><span class="ml-4">Manage Collections</span></a>
                     <a href="?page=colors" class="sidebar-link flex items-center px-4 py-3 rounded-lg"><i class="fa-solid fa-fw fa-palette w-5 h-5"></i><span class="ml-4">Manage Colors</span></a>
                     <a href="?page=sizes" class="sidebar-link flex items-center px-4 py-3 rounded-lg"><i class="fa-solid fa-fw fa-ruler-horizontal w-5 h-5"></i><span class="ml-4">Manage Sizes</span></a>
-                    <!-- <a href="/login" class="sidebar-link flex items-center px-4 py-3 rounded-lg mt-auto absolute bottom-4 w-56"><i class="fa-solid fa-fw fa-right-from-bracket w-5 h-5"></i><span class="ml-4">Logout</span></a> -->
+                    <!-- <a href="/login" class="sidebar-link flex items-center px-4 py-3 rounded-lg mt-auto absolute bottom-4 w-56"><i class="fa-solid fa-right-from-bracket w-5 h-5"></i><span class="ml-4">Logout</span></a> -->
                 </nav>
             </aside>
             
@@ -334,7 +467,13 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
                         <button @click="sidebarOpen = !sidebarOpen" class="md:hidden mr-4 text-gray-600 focus:outline-none"><i class="fa-solid fa-bars w-6 h-6"></i></button>
                         <h1 class="text-xl sm:text-2xl font-bold text-gray-800 capitalize"><?= str_replace('_', ' ', $page) ?></h1>
                     </div>
-                    <div><span class="text-sm text-gray-600">Welcome, Admin!</span></div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-sm text-gray-600">Welcome, Admin!</span>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="logout">
+                            <button type="submit" class="btn btn-danger">Logout</button>
+                        </form>
+                    </div>
                 </header>
 
                 <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
@@ -357,7 +496,15 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
                                     <div class="bg-white p-6 rounded-xl shadow-md flex items-center gap-5 transform hover:-translate-y-1 transition-transform duration-300"><div class="bg-yellow-100 p-4 rounded-full"><i class="fa-solid fa-chart-line w-7 h-7 text-yellow-600"></i></div><div><p class="text-sm text-gray-500">Avg. Order Value</p><p class="text-2xl font-bold text-gray-800">₦<?= number_format($averageOrderValue, 2) ?></p></div></div>
                                 </div>
                                 <div class="mt-8 form-card overflow-hidden p-0"><div class="p-6 border-b"><h2 class="text-xl font-semibold text-gray-800">Recent Orders</h2></div><div class="overflow-x-auto"><table class="content-table"><thead><tr><th>Order ID</th><th>Customer</th><th>Date</th><th>Total</th><th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>
-                                            <?php if (!empty($recentOrders)): ?><?php foreach ($recentOrders as $order): ?><tr><td class="font-mono text-sm">#<?= $order['order_number'] ?></td><td><?= htmlspecialchars($order['full_name']) ?></td><td><?= date("M d, Y", strtotime($order['created_at'])) ?></td><td class="font-semibold">₦<?= number_format($order['grand_total'], 2) ?></td><td><?= getStatusBadge($order['order_status']) ?></td><td class="text-right"><a href="/invoice?order_number=<?= $order['order_number'] ?>" target="_blank" class="font-medium text-indigo-600 hover:text-indigo-800">View Invoice</a></td></tr><?php endforeach; ?><?php else: ?><tr><td colspan="6" class="text-center py-4 text-gray-500">There are no recent orders.</td></tr><?php endif; ?></tbody></table></div></div>
+                                            <?php if (!empty($recentOrders)): ?><?php foreach ($recentOrders as $order): ?><tr><td class="font-mono text-sm">#<?= $order['order_number'] ?></td><td><?= htmlspecialchars($order['full_name']) ?></td><td><?= date("M d, Y", strtotime($order['created_at'])) ?></td><td class="font-semibold">₦<?= number_format($order['grand_total'], 2) ?></td><td><?= getStatusBadge($order['order_status']) ?></td><td class="text-right"><a href="/invoice?order_number=<?= $order['order_number'] ?>" target="_blank" class="font-medium text-indigo-600 hover:text-indigo-800 mr-3">View Invoice</a><form action="?page=dashboard" method="POST" style="display:inline;" data-confirm="Are you sure you want to delete this order? This action cannot be undone."><input type="hidden" name="action" value="delete_order"><input type="hidden" name="order_number" value="<?= $order['order_number'] ?>"><button type="submit" class="text-red-500 hover:text-red-700 font-medium">Delete</button></form></td></tr><?php endforeach; ?><?php else: ?><tr><td colspan="6" class="text-center py-4 text-gray-500">There are no recent orders.</td></tr><?php endif; ?></tbody></table></div></div>
+                                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+                                    <h2 class="text-xl font-semibold text-gray-800">Recent Orders</h2>
+                                    <form method="GET" class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                                        <input type="hidden" name="page" value="dashboard">
+                                        <input type="text" name="search" placeholder="Search orders..." class="form-input w-full sm:max-w-sm md:w-64" value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+                                        <button type="submit" class="btn btn-primary px-4 py-2 w-full sm:w-auto">Search</button>
+                                    </form>
+                                </div>
                                 <?php break; ?>
 
                             <?php case 'add_product': ?>
@@ -383,7 +530,7 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
                                                 <div><label class="form-label">Main Image</label><div class="drop-zone" data-input-id="image_one"><i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400"></i><p class="text-sm text-gray-500 mt-2">Drag & drop or click to upload</p><input type="file" name="image_one" id="image_one" accept="image/*"></div><div class="image-preview-container" id="preview_image_one"><?php if (!empty($productToEdit['image_one'])): ?><input type="hidden" name="current_image_one" value="<?= $productToEdit['image_one'] ?>"><div class="image-preview-item"><img src="/<?= htmlspecialchars($productToEdit['image_one']) ?>"></div><?php endif; ?></div></div>
                                                 <div><label class="form-label">Hover Image</label><div class="drop-zone" data-input-id="image_two"><i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400"></i><p class="text-sm text-gray-500 mt-2">Drag & drop or click to upload</p><input type="file" name="image_two" id="image_two" accept="image/*"></div><div class="image-preview-container" id="preview_image_two"><?php if (!empty($productToEdit['image_two'])): ?><input type="hidden" name="current_image_two" value="<?= $productToEdit['image_two'] ?>"><div class="image-preview-item"><img src="/<?= htmlspecialchars($productToEdit['image_two']) ?>"></div><?php endif; ?></div></div>
                                             </div>
-                                            <div><label class="form-label">Product Gallery (Add multiple images)</label><div class="drop-zone" data-input-id="gallery_images"><i class="fa-solid fa-images text-3xl text-gray-400"></i><p class="text-sm text-gray-500 mt-2">Drag & drop or click to upload</p><input type="file" name="gallery_images[]" id="gallery_images" multiple accept="image/*"></div><div class="image-preview-container" id="preview_gallery_images"><?php foreach ($productImages as $image): ?><div class="image-preview-item"><img src="/<?= htmlspecialchars($image['image_path']) ?>"><form method="POST" onsubmit="return confirm('Delete this image?');"><input type="hidden" name="action" value="delete"><input type="hidden" name="table" value="product_images"><input type="hidden" name="id" value="<?= $image['id'] ?>"><button type="submit" class="remove-btn" title="Delete image"><i class="fa-solid fa-times text-xs"></i></button></form></div><?php endforeach; ?></div></div>
+                                            <div><label class="form-label">Product Gallery (Add multiple images)</label><div class="drop-zone" data-input-id="gallery_images"><i class="fa-solid fa-images text-3xl text-gray-400"></i><p class="text-sm text-gray-500 mt-2">Drag & drop or click to upload</p><input type="file" name="gallery_images[]" id="gallery_images" multiple accept="image/*"></div><div class="image-preview-container" id="preview_gallery_images"><?php foreach ($productImages as $image): ?><div class="image-preview-item"><img src="/<?= htmlspecialchars($image['image_path']) ?>"><form method="POST" data-confirm="Delete this image?"><input type="hidden" name="action" value="delete"><input type="hidden" name="table" value="product_images"><input type="hidden" name="id" value="<?= $image['id'] ?>"><button type="submit" class="remove-btn" title="Delete image"><i class="fa-solid fa-times text-xs"></i></button></form></div><?php endforeach; ?></div></div>
                                             
                                             <div class="border-t border-gray-200 pt-8">
                                                 <label class="form-label">Price Variants (Optional)</label>
@@ -411,8 +558,51 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
                                 <?php break; ?>
 
                             <?php case 'manage_products': ?>
-                                <div class="form-card overflow-hidden p-0"><div class="p-6 border-b flex justify-between items-center"><h2 class="text-xl font-semibold text-gray-800">All Products</h2><a href="?page=add_product" class="btn btn-primary">Add New Product</a></div><div class="overflow-x-auto"><table class="content-table"><thead><tr><th>Image</th><th>Name</th><th>Price</th><th>Stock</th><th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>
-                                            <?php if (!empty($products)): ?><?php foreach ($products as $product): ?><tr><td><?php if (!empty($product['image_one'])): ?><img src="/<?= htmlspecialchars($product['image_one']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="h-14 w-14 object-cover rounded-lg"><?php else: ?><div class="h-14 w-14 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400"><i class="fa-solid fa-image"></i></div><?php endif; ?></td><td class="font-medium"><?= htmlspecialchars($product['name']) ?></td><td>₦<?= number_format($product['price']) ?></td><td><?= $product['stock_quantity'] ?></td><td><?= getStatusBadge($product['visibility']) ?></td><td class="text-right"><div class="flex gap-4 justify-end items-center h-full"><a href="?page=add_product&edit_id=<?= $product['id'] ?>" class="font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"><i class="fa-solid fa-pen-to-square w-4 h-4"></i>Edit</a><form action="?page=manage_products" method="POST" onsubmit="return confirm('Are you sure?');"><input type="hidden" name="action" value="delete"><input type="hidden" name="table" value="panel_products"><input type="hidden" name="id" value="<?= $product['id'] ?>"><button type="submit" class="text-red-500 hover:text-red-700 font-medium flex items-center gap-1"><i class="fa-solid fa-trash-can w-4 h-4"></i>Delete</button></form></div></td></tr><?php endforeach; ?><?php else: ?><tr><td colspan="6" class="text-center py-4 text-gray-500">No products have been added yet.</td></tr><?php endif; ?></tbody></table></div></div>
+                                <div class="form-card overflow-hidden p-0"><div class="p-6 border-b flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><h2 class="text-xl font-semibold text-gray-800">All Products</h2><div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                                    <form method="GET" class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                                        <input type="hidden" name="page" value="manage_products">
+                                        <input type="text" name="search" placeholder="Search products..." class="form-input w-full sm:max-w-sm md:w-64" value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+                                        <button type="submit" class="btn btn-primary px-4 py-2 w-full sm:w-auto">Search</button>
+                                    </form>
+                                    <a href="?page=add_product" class="btn btn-primary w-full sm:w-auto text-center">Add New Product</a>
+                                </div></div><div class="overflow-x-auto"><table class="content-table"><thead><tr><th>Image</th><th>Name</th><th>Price</th><th>Stock</th><th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>
+                                            <?php if (!empty($products)): ?><?php foreach ($products as $product): ?><tr><td><?php if (!empty($product['image_one'])): ?><img src="/<?= htmlspecialchars($product['image_one']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="h-14 w-14 object-cover"><?php else: ?><div class="h-14 w-14 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400"><i class="fa-solid fa-image"></i></div><?php endif; ?></td><td class="font-medium"><?= htmlspecialchars($product['name']) ?></td><td>₦<?= number_format($product['price']) ?></td><td><?= $product['stock_quantity'] ?></td><td><?= getStatusBadge($product['visibility']) ?></td><td class="text-right"><div class="flex gap-4 justify-end items-center h-full"><a href="?page=add_product&edit_id=<?= $product['id'] ?>" class="font-medium text-indigo-600 hover:text-indigo-800">Edit</a><form action="?page=manage_products" method="POST" data-confirm="Are you sure you want to delete this item? This action cannot be undone."><input type="hidden" name="action" value="delete"><input type="hidden" name="table" value="panel_products"><input type="hidden" name="id" value="<?= $product['id'] ?>"><button type="submit" class="text-red-500 hover:text-red-700 font-medium">Delete</button></form></div></td></tr><?php endforeach; ?><?php else: ?><tr><td colspan="6" class="text-center py-4 text-gray-500">No products have been added yet.</td></tr><?php endif; ?></tbody></table></div></div>
+                                <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 sm:px-6 mt-4">
+                                    <div class="flex flex-1 justify-between sm:hidden">
+                                        <?php if ($currentPage > 1): ?>
+                                            <a href="?page=manage_products&p=<?= $currentPage - 1 ?>" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</a>
+                                        <?php endif; ?>
+                                        <?php if ($currentPage < $totalPages): ?>
+                                            <a href="?page=manage_products&p=<?= $currentPage + 1 ?>" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</a>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                                        <div>
+                                            <p class="text-sm text-gray-700">
+                                                Showing <span class="font-medium"><?= $offset + 1 ?></span> to <span class="font-medium"><?= min($offset + $itemsPerPage, $totalProducts) ?></span> of <span class="font-medium"><?= $totalProducts ?></span> results
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                                <?php if ($currentPage > 1): ?>
+                                                    <a href="?page=manage_products&p=<?= $currentPage - 1 ?>" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
+                                                        <span class="sr-only">Previous</span>
+                                                        <i class="fa-solid fa-chevron-left w-4 h-4"></i>
+                                                    </a>
+                                                <?php endif; ?>
+                                                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                                                    <a href="?page=manage_products&p=<?= $i ?>" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold <?= $i === $currentPage ? 'bg-indigo-600 text-white' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50' ?> focus:z-20"><?= $i ?></a>
+                                                <?php endfor; ?>
+                                                <?php if ($currentPage < $totalPages): ?>
+                                                    <a href="?page=manage_products&p=<?= $currentPage + 1 ?>" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
+                                                        <span class="sr-only">Next</span>
+                                                        <i class="fa-solid fa-chevron-right w-4 h-4"></i>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </nav>
+                                        </div>
+                                    </div>
+                                </div>
                                 <?php break; ?>
 
                             <?php case 'collections': $title_singular = 'Collection'; $title_plural = 'Collections'; $items = $collections; $itemToEdit = $collectionToEdit; ?>
@@ -422,11 +612,22 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
                             <?php case 'colors':
                             case 'sizes':
                                 $is_colors_page = ($page === 'colors'); $title_singular = $is_colors_page ? 'Color' : 'Size'; $title_plural = $is_colors_page ? 'Colors' : 'Sizes'; $items = $is_colors_page ? $colors : $sizes; $itemToEdit = $is_colors_page ? $colorToEdit : $sizeToEdit; ?>
-                                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8"><div class="lg:col-span-1"><div class="form-card"><h2 class="text-2xl font-bold mb-6 text-gray-800"><?= $itemToEdit ? "Edit $title_singular" : "Add New $title_singular" ?></h2><form action="?page=<?= $page ?>" method="POST"><input type="hidden" name="action" value="<?= $itemToEdit ? "edit_" . strtolower($title_singular) : "add_" . strtolower($title_singular) ?>"><?php if ($itemToEdit): ?><input type="hidden" name="id" value="<?= $itemToEdit['id'] ?>"><?php endif; ?><div><label class="form-label" for="name"><?= $title_singular ?> Name</label><input id="name" type="text" name="name" value="<?= htmlspecialchars($itemToEdit['name'] ?? '') ?>" class="form-input" required></div><?php if ($is_colors_page): ?><div class="mt-4"><label class="form-label" for="hex_code">Hex Code</label><input type="color" name="hex_code" value="<?= $itemToEdit['hex_code'] ?? '#000000' ?>" class="w-full h-12 p-1 rounded-md border-gray-300 cursor-pointer"></div><?php endif; ?><div class="mt-8"><button type="submit" class="btn btn-primary w-full"><?= $itemToEdit ? "Update $title_singular" : "Add $title_singular" ?></button><?php if ($itemToEdit): ?><a href="?page=<?= $page ?>" class="block text-center mt-3 text-sm text-gray-600 hover:text-gray-900">Cancel Edit</a><?php endif; ?></div></form></div></div><div class="lg:col-span-2"><div class="form-card"><h2 class="text-2xl font-bold mb-6 text-gray-800">Available <?= $title_plural ?></h2><div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4"><?php foreach ($items as $item): ?><div class="border p-4 rounded-lg flex items-center justify-between gap-3 transform hover:-translate-y-1 transition-transform duration-300 bg-white"><div class="flex items-center gap-3 font-medium text-gray-800"><?php if ($is_colors_page): ?><span class="w-6 h-6 rounded-full border" style="background-color:<?= $item['hex_code'] ?>"></span><?php endif; ?><span><?= htmlspecialchars($item['name']) ?></span></div><div class="flex gap-2 text-xs"><a href="?page=<?= $page ?>&edit_id=<?= $item['id'] ?>" class="font-medium text-indigo-600 hover:text-indigo-800">Edit</a><form action="?page=<?= $page ?>" method="POST" onsubmit="return confirm('Are you sure?');"><input type="hidden" name="action" value="delete"><input type="hidden" name="table" value="<?= strtolower($title_plural) ?>"><input type="hidden" name="id" value="<?= $item['id'] ?>"><button type="submit" class="font-medium text-red-500 hover:text-red-700">Del</button></form></div></div><?php endforeach; ?></div></div></div></div>
+                                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8"><div class="lg:col-span-1"><div class="form-card"><h2 class="text-2xl font-bold mb-6 text-gray-800"><?= $itemToEdit ? "Edit $title_singular" : "Add New $title_singular" ?></h2><form action="?page=<?= $page ?>" method="POST"><input type="hidden" name="action" value="<?= $itemToEdit ? "edit_" . strtolower($title_singular) : "add_" . strtolower($title_singular) ?>"><?php if ($itemToEdit): ?><input type="hidden" name="id" value="<?= $itemToEdit['id'] ?>"><?php endif; ?><div><label class="form-label" for="name"><?= $title_singular ?> Name</label><input id="name" type="text" name="name" value="<?= htmlspecialchars($itemToEdit['name'] ?? '') ?>" class="form-input" required></div><?php if ($is_colors_page): ?><div class="mt-4"><label class="form-label" for="hex_code">Hex Code</label><input type="color" name="hex_code" value="<?= $itemToEdit['hex_code'] ?? '#000000' ?>" class="w-full h-12 p-1 rounded-md border-gray-300 cursor-pointer"></div><?php endif; ?><div class="mt-8"><button type="submit" class="btn btn-primary w-full"><?= $itemToEdit ? "Update $title_singular" : "Add $title_singular" ?></button><?php if ($itemToEdit): ?><a href="?page=<?= $page ?>" class="block text-center mt-3 text-sm text-gray-600 hover:text-gray-900">Cancel Edit</a><?php endif; ?></div></form></div></div><div class="lg:col-span-2"><div class="form-card"><h2 class="text-2xl font-bold mb-6 text-gray-800">Available <?= $title_plural ?></h2><div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4"><?php foreach ($items as $item): ?><div class="border p-4 rounded-lg flex items-center justify-between gap-3 transform hover:-translate-y-1 transition-transform duration-300 bg-white"><div class="flex items-center gap-3 font-medium text-gray-800"><?php if ($is_colors_page): ?><span class="w-6 h-6 rounded-full border" style="background-color:<?= $item['hex_code'] ?>"></span><?php endif; ?><span><?= $item['name'] ?></span></div><div class="flex gap-2 text-xs"><a href="?page=<?= $page ?>&edit_id=<?= $item['id'] ?>" class="font-medium text-indigo-600 hover:text-indigo-800">Edit</a><form action="?page=<?= $page ?>" method="POST" onsubmit="return confirm('Are you sure?');"><input type="hidden" name="action" value="delete"><input type="hidden" name="table" value="<?= strtolower($title_plural) ?>"><input type="hidden" name="id" value="<?= $item['id'] ?>"><button type="submit" class="font-medium text-red-500 hover:text-red-700">Del</button></form></div></div><?php endforeach; ?></div></div></div></div>
                                 <?php break; ?>
                         <?php endswitch; ?>
                     </div>
                 </main>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmation-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white p-6 rounded-xl max-w-md w-full">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Confirm Delete</h3>
+            <p class="text-gray-600 mb-6 confirmation-message">Are you sure you want to delete this item? This action cannot be undone.</p>
+            <div class="flex justify-end gap-4">
+                <button id="modal-cancel" class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+                <button id="modal-confirm" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">Delete</button>
             </div>
         </div>
     </div>
@@ -436,7 +637,11 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
         const currentPage = new URLSearchParams(window.location.search).get('page') || 'dashboard';
         const activeLink = document.querySelector(`.sidebar-link[href*="?page=${currentPage}"], .dropdown-link[href*="?page=${currentPage}"]`);
         if (activeLink) { activeLink.classList.add('active'); }
-        function setupDropZone(dropZone) { const input = document.getElementById(dropZone.dataset.inputId); if (!input) return; const previewContainer = document.getElementById('preview_' + input.id); dropZone.addEventListener('click', () => input.click()); input.addEventListener('change', () => handleFiles(input.files)); dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); }); ['dragleave', 'dragend'].forEach(type => { dropZone.addEventListener(type, () => dropZone.classList.remove('drag-over')); }); dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; handleFiles(e.dataTransfer.files); } }); function handleFiles(files) { if (!input.multiple) { previewContainer.innerHTML = ''; } for (const file of files) { if (!file.type.startsWith('image/')) continue; const reader = new FileReader(); reader.onload = (e) => { const previewItem = document.createElement('div'); previewItem.className = 'image-preview-item'; const img = document.createElement('img'); img.src = e.target.result; previewItem.appendChild(img); previewContainer.appendChild(previewItem); }; reader.readAsDataURL(file); } } }
+        function setupDropZone(dropZone) { const input = document.getElementById(dropZone.dataset.inputId); if (!input) return; const previewContainer = document.getElementById('preview_' + input.id); dropZone.addEventListener('click', () => input.click()); input.addEventListener('change', () => handleFiles(input.files)); dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); }); ['dragleave', 'dragend'].forEach(type => { dropZone.addEventListener(type, () => dropZone.classList.remove('drag-over')); }); dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; handleFiles(e.dataTransfer.files); } }); function handleFiles(files) { if (!input.multiple) { previewContainer.innerHTML = ''; } for (const file of files) { if (!file.type.startsWith('image/')) continue; const previewItem = document.createElement('div'); previewItem.className = 'image-preview-item relative flex items-center justify-center'; previewItem.innerHTML = `
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+                    </div>
+                `; previewContainer.appendChild(previewItem); const reader = new FileReader(); reader.onload = (e) => { previewItem.innerHTML = ''; const img = document.createElement('img'); img.src = e.target.result; previewItem.appendChild(img); const removeBtn = document.createElement('button'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '<i class="fa-solid fa-times text-xs"></i>'; removeBtn.title = 'Delete image'; removeBtn.onclick = function() { previewItem.remove(); }; previewItem.appendChild(removeBtn); }; reader.readAsDataURL(file); } } }
         document.querySelectorAll('.drop-zone').forEach(setupDropZone);
         const addVariantBtn = document.getElementById('add-variant-btn');
         const variantsContainer = document.getElementById('price-variants-container');
@@ -463,5 +668,165 @@ function getStatusBadge($status) { $status = strtolower($status); $colorClasses 
         }
     });
 </script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let pendingDeleteForm = null;
+
+        const modal = document.getElementById('confirmation-modal');
+        if (!modal) return;
+
+        const modalCancel = document.getElementById('modal-cancel');
+        const modalConfirm = document.getElementById('modal-confirm');
+        const modalMessage = modal.querySelector('.confirmation-message');
+
+        modalCancel?.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            pendingDeleteForm = null;
+        });
+
+        modalConfirm?.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            if (pendingDeleteForm) {
+                pendingDeleteForm.dataset.confirmed = 'true';
+                const formToSubmit = pendingDeleteForm;
+                pendingDeleteForm = null;
+                formToSubmit.submit();
+            }
+        });
+
+        document.querySelectorAll('form[data-confirm]').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                if (form.dataset.confirmed === 'true') {
+                    delete form.dataset.confirmed;
+                    return;
+                }
+
+                e.preventDefault();
+
+                if (modalMessage) {
+                    modalMessage.textContent = form.dataset.confirm || 'Are you sure you want to delete this item?';
+                }
+
+                pendingDeleteForm = form;
+                modal.classList.remove('hidden');
+            });
+        });
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const productForm = document.querySelector('form[action="?page=add_product"]');
+        if (productForm) {
+            productForm.addEventListener('submit', function(e) {
+                const name = productForm.querySelector('#name');
+                const stock = productForm.querySelector('#stock');
+                
+                if (!name.value.trim()) {
+                    e.preventDefault();
+                    alert('Product name is required');
+                    name.focus();
+                    return false;
+                }
+                
+                if (stock.value < 0) {
+                    e.preventDefault();
+                    alert('Stock quantity must be non-negative');
+                    stock.focus();
+                    return false;
+                }
+                
+                // Validate price variants
+                const variantNames = productForm.querySelectorAll('input[name="variant_name[]"]');
+                const variantPrices = productForm.querySelectorAll('input[name="variant_price[]"]');
+                
+                for (let i = 0; i < variantNames.length; i++) {
+                    if (variantNames[i].value.trim() && (!variantPrices[i].value || parseFloat(variantPrices[i].value) <= 0)) {
+                        e.preventDefault();
+                        alert('Please enter a valid price for all variants');
+                        variantPrices[i].focus();
+                        return false;
+                    }
+                    
+                    if (!variantNames[i].value.trim() && variantPrices[i].value) {
+                        e.preventDefault();
+                        alert('Please enter a name for the variant');
+                        variantNames[i].focus();
+                        return false;
+                    }
+                }
+            });
+        }
+    });
+</script>
+
+<script>
+    $(document).ready(function() {
+        // Product search functionality
+        $('input[placeholder="Search products..."]').on('input', function() {
+            const term = $(this).val().trim();
+            if (term.length < 2) {
+                $('#product-search-results').hide();
+                return;
+            }
+            
+            $.get('/v1/ajax/search_products.php', { term: term }, function(products) {
+                const container = $('#product-search-results');
+                if (container.length === 0) {
+                    $('<div id="product-search-results" class="search-results-container"></div>')
+                        .insertAfter($('input[placeholder="Search products..."]'));
+                }
+                
+                $('#product-search-results').empty();
+                products.forEach(product => {
+                    $('<div>').text(product.name)
+                        .on('click', function() {
+                            $('input[placeholder="Search products..."]').val(product.name);
+                            $('#product-search-results').hide();
+                        })
+                        .appendTo('#product-search-results');
+                });
+                $('#product-search-results').show();
+            });
+        });
+        
+        // Order search functionality
+        $('input[placeholder="Search orders..."]').on('input', function() {
+            const term = $(this).val().trim();
+            if (term.length < 2) {
+                $('#order-search-results').hide();
+                return;
+            }
+            
+            $.get('/v1/ajax/search_orders.php', { term: term }, function(orders) {
+                const container = $('#order-search-results');
+                if (container.length === 0) {
+                    $('<div id="order-search-results" class="search-results-container"></div>')
+                        .insertAfter($('input[placeholder="Search orders..."]'));
+                }
+                
+                $('#order-search-results').empty();
+                orders.forEach(order => {
+                    $('<div>').text(`${order.order_number} - ${order.full_name}`)
+                        .on('click', function() {
+                            $('input[placeholder="Search orders..."]').val(order.order_number);
+                            $('#order-search-results').hide();
+                        })
+                        .appendTo('#order-search-results');
+                });
+                $('#order-search-results').show();
+            });
+        });
+        
+        // Hide results when clicking outside
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.search-results-container').length) {
+                $('.search-results-container').hide();
+            }
+        });
+    });
+</script>
+
 </body>
 </html>
