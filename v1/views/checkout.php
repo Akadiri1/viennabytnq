@@ -77,50 +77,50 @@ $countryCurrencyMap = [
 
 // Phone Number Validation Configuration
 $phoneValidationRules = [
-    'NG' => ['prefix' => '+234', 'pattern' => '/^(\+234|0)?[789][01]\d{8}$/', 'placeholder' => '+234 801 234 5678', 'example' => '+234 801 234 5678'],
-    'US' => ['prefix' => '+1', 'pattern' => '/^(\+1|1)?[2-9]\d{2}[2-9]\d{2}\d{4}$/', 'placeholder' => '+1 (555) 123-4567', 'example' => '+1 (555) 123-4567'],
-    'GB' => ['prefix' => '+44', 'pattern' => '/^(\+44|0)?[1-9]\d{8,9}$/', 'placeholder' => '+44 20 7946 0958', 'example' => '+44 20 7946 0958'],
-    'CA' => ['prefix' => '+1', 'pattern' => '/^(\+1|1)?[2-9]\d{2}[2-9]\d{2}\d{4}$/', 'placeholder' => '+1 (416) 555-0123', 'example' => '+1 (416) 555-0123'],
-    'AU' => ['prefix' => '+61', 'pattern' => '/^(\+61|0)?[2-9]\d{8}$/', 'placeholder' => '+61 2 1234 5678', 'example' => '+61 2 1234 5678'],
-    'DE' => ['prefix' => '+49', 'pattern' => '/^(\+49|0)?[1-9]\d{10,11}$/', 'placeholder' => '+49 30 12345678', 'example' => '+49 30 12345678'],
-    'FR' => ['prefix' => '+33', 'pattern' => '/^(\+33|0)?[1-9]\d{8}$/', 'placeholder' => '+33 1 23 45 67 89', 'example' => '+33 1 23 45 67 89'],
-    'AE' => ['prefix' => '+971', 'pattern' => '/^(\+971|0)?[2-9]\d{8}$/', 'placeholder' => '+971 4 123 4567', 'example' => '+971 4 123 4567'],
-    'SA' => ['prefix' => '+966', 'pattern' => '/^(\+966|0)?[1-9]\d{8}$/', 'placeholder' => '+966 11 123 4567', 'example' => '+966 11 123 4567'],
-    'AF' => ['prefix' => '+93', 'pattern' => '/^(\+93|0)?[1-9]\d{8}$/', 'placeholder' => '+93 20 123 4567', 'example' => '+93 20 123 4567'],
-    'AL' => ['prefix' => '+355', 'pattern' => '/^(\+355|0)?[1-9]\d{7,8}$/', 'placeholder' => '+355 4 123 4567', 'example' => '+355 4 123 4567'],
-    'DZ' => ['prefix' => '+213', 'pattern' => '/^(\+213|0)?[1-9]\d{8}$/', 'placeholder' => '+213 21 12 34 56', 'example' => '+213 21 12 34 56'],
-    'AR' => ['prefix' => '+54', 'pattern' => '/^(\+54|0)?[1-9]\d{9,10}$/', 'placeholder' => '+54 11 1234-5678', 'example' => '+54 11 1234-5678'],
-    'AT' => ['prefix' => '+43', 'pattern' => '/^(\+43|0)?[1-9]\d{9,10}$/', 'placeholder' => '+43 1 234 5678', 'example' => '+43 1 234 5678'],
-    'BD' => ['prefix' => '+880', 'pattern' => '/^(\+880|0)?[1-9]\d{9}$/', 'placeholder' => '+880 2 1234 5678', 'example' => '+880 2 1234 5678'],
-    'BE' => ['prefix' => '+32', 'pattern' => '/^(\+32|0)?[1-9]\d{8}$/', 'placeholder' => '+32 2 123 45 67', 'example' => '+32 2 123 45 67'],
-    'BR' => ['prefix' => '+55', 'pattern' => '/^(\+55|0)?[1-9]\d{10,11}$/', 'placeholder' => '+55 11 91234-5678', 'example' => '+55 11 91234-5678'],
-    'CN' => ['prefix' => '+86', 'pattern' => '/^(\+86|0)?1[3-9]\d{9}$/', 'placeholder' => '+86 138 0013 8000', 'example' => '+86 138 0013 8000'],
-    'DK' => ['prefix' => '+45', 'pattern' => '/^(\+45|0)?[1-9]\d{7,8}$/', 'placeholder' => '+45 12 34 56 78', 'example' => '+45 12 34 56 78'],
-    'EG' => ['prefix' => '+20', 'pattern' => '/^(\+20|0)?[1-9]\d{9}$/', 'placeholder' => '+20 2 1234 5678', 'example' => '+20 2 1234 5678'],
-    'GH' => ['prefix' => '+233', 'pattern' => '/^(\+233|0)?[2-9]\d{8}$/', 'placeholder' => '+233 24 123 4567', 'example' => '+233 24 123 4567'],
-    'IN' => ['prefix' => '+91', 'pattern' => '/^(\+91|0)?[6-9]\d{9}$/', 'placeholder' => '+91 98765 43210', 'example' => '+91 98765 43210'],
-    'ID' => ['prefix' => '+62', 'pattern' => '/^(\+62|0)?[2-9]\d{8,11}$/', 'placeholder' => '+62 21 1234 5678', 'example' => '+62 21 1234 5678'],
-    'IE' => ['prefix' => '+353', 'pattern' => '/^(\+353|0)?[1-9]\d{8,9}$/', 'placeholder' => '+353 1 234 5678', 'example' => '+353 1 234 5678'],
-    'IT' => ['prefix' => '+39', 'pattern' => '/^(\+39|0)?[1-9]\d{8,10}$/', 'placeholder' => '+39 06 1234 5678', 'example' => '+39 06 1234 5678'],
-    'JP' => ['prefix' => '+81', 'pattern' => '/^(\+81|0)?[1-9]\d{9,10}$/', 'placeholder' => '+81 3 1234 5678', 'example' => '+81 3 1234 5678'],
-    'KE' => ['prefix' => '+254', 'pattern' => '/^(\+254|0)?[1-9]\d{8}$/', 'placeholder' => '+254 20 123 4567', 'example' => '+254 20 123 4567'],
-    'MY' => ['prefix' => '+60', 'pattern' => '/^(\+60|0)?[1-9]\d{8,9}$/', 'placeholder' => '+60 3 1234 5678', 'example' => '+60 3 1234 5678'],
-    'MX' => ['prefix' => '+52', 'pattern' => '/^(\+52|0)?[1-9]\d{9,10}$/', 'placeholder' => '+52 55 1234 5678', 'example' => '+52 55 1234 5678'],
-    'NL' => ['prefix' => '+31', 'pattern' => '/^(\+31|0)?[1-9]\d{8,9}$/', 'placeholder' => '+31 20 123 4567', 'example' => '+31 20 123 4567'],
-    'NZ' => ['prefix' => '+64', 'pattern' => '/^(\+64|0)?[1-9]\d{8,9}$/', 'placeholder' => '+64 9 123 4567', 'example' => '+64 9 123 4567'],
-    'PK' => ['prefix' => '+92', 'pattern' => '/^(\+92|0)?[1-9]\d{9}$/', 'placeholder' => '+92 21 1234 5678', 'example' => '+92 21 1234 5678'],
-    'PH' => ['prefix' => '+63', 'pattern' => '/^(\+63|0)?[1-9]\d{9}$/', 'placeholder' => '+63 2 123 4567', 'example' => '+63 2 123 4567'],
-    'PL' => ['prefix' => '+48', 'pattern' => '/^(\+48|0)?[1-9]\d{8}$/', 'placeholder' => '+48 22 123 45 67', 'example' => '+48 22 123 45 67'],
-    'PT' => ['prefix' => '+351', 'pattern' => '/^(\+351|0)?[1-9]\d{8}$/', 'placeholder' => '+351 21 123 4567', 'example' => '+351 21 123 4567'],
-    'RU' => ['prefix' => '+7', 'pattern' => '/^(\+7|0)?[1-9]\d{9,10}$/', 'placeholder' => '+7 495 123 45 67', 'example' => '+7 495 123 45 67'],
-    'SG' => ['prefix' => '+65', 'pattern' => '/^(\+65|0)?[689]\d{7}$/', 'placeholder' => '+65 6123 4567', 'example' => '+65 6123 4567'],
-    'ZA' => ['prefix' => '+27', 'pattern' => '/^(\+27|0)?[1-9]\d{8,9}$/', 'placeholder' => '+27 11 123 4567', 'example' => '+27 11 123 4567'],
-    'KR' => ['prefix' => '+82', 'pattern' => '/^(\+82|0)?[1-9]\d{8,9}$/', 'placeholder' => '+82 2 1234 5678', 'example' => '+82 2 1234 5678'],
-    'ES' => ['prefix' => '+34', 'pattern' => '/^(\+34|0)?[6-9]\d{8}$/', 'placeholder' => '+34 612 34 56 78', 'example' => '+34 612 34 56 78'],
-    'SE' => ['prefix' => '+46', 'pattern' => '/^(\+46|0)?[1-9]\d{8,9}$/', 'placeholder' => '+46 8 123 456 78', 'example' => '+46 8 123 456 78'],
-    'CH' => ['prefix' => '+41', 'pattern' => '/^(\+41|0)?[1-9]\d{8}$/', 'placeholder' => '+41 44 123 45 67', 'example' => '+41 44 123 45 67'],
-    'TH' => ['prefix' => '+66', 'pattern' => '/^(\+66|0)?[1-9]\d{8,9}$/', 'placeholder' => '+66 2 123 4567', 'example' => '+66 2 123 4567'],
-    'TR' => ['prefix' => '+90', 'pattern' => '/^(\+90|0)?[1-9]\d{9}$/', 'placeholder' => '+90 212 123 45 67', 'example' => '+90 212 123 45 67'],
+    'NG' => ['prefix' => '+234', 'pattern' => '/^\\+234(70[1-9]|80[2-9]|81[0-9]|90[1-9]|91[1-9])\\d{7}$/', 'placeholder' => '+234 801 234 5678', 'example' => '+234 801 234 5678'],
+    'US' => ['prefix' => '+1', 'pattern' => '/^\+1[2-9]\d{2}[2-9]\d{2}\d{4}$/', 'placeholder' => '+1 (555) 123-4567', 'example' => '+1 (555) 123-4567'],
+    'GB' => ['prefix' => '+44', 'pattern' => '/^\+44[1-9]\d{8,9}$/', 'placeholder' => '+44 20 7946 0958', 'example' => '+44 20 7946 0958'],
+    'CA' => ['prefix' => '+1', 'pattern' => '/^\+1[2-9]\d{2}[2-9]\d{2}\d{4}$/', 'placeholder' => '+1 (416) 555-0123', 'example' => '+1 (416) 555-0123'],
+    'AU' => ['prefix' => '+61', 'pattern' => '/^\\+61[2-9]\\d{8}$/', 'placeholder' => '+61 2 1234 5678', 'example' => '+61 2 1234 5678'],
+    'DE' => ['prefix' => '+49', 'pattern' => '/^\\+49[1-9]\\d{10,11}$/', 'placeholder' => '+49 30 12345678', 'example' => '+49 30 12345678'],
+    'FR' => ['prefix' => '+33', 'pattern' => '/^\\+33[1-9]\\d{8}$/', 'placeholder' => '+33 1 23 45 67 89', 'example' => '+33 1 23 45 67 89'],
+    'AE' => ['prefix' => '+971', 'pattern' => '/^\\+971[2-9]\\d{8}$/', 'placeholder' => '+971 4 123 4567', 'example' => '+971 4 123 4567'],
+    'SA' => ['prefix' => '+966', 'pattern' => '/^\\+966[1-9]\\d{8}$/', 'placeholder' => '+966 11 123 4567', 'example' => '+966 11 123 4567'],
+    'AF' => ['prefix' => '+93', 'pattern' => '/^\\+93[1-9]\\d{8}$/', 'placeholder' => '+93 20 123 4567', 'example' => '+93 20 123 4567'],
+    'AL' => ['prefix' => '+355', 'pattern' => '/^\\+355[1-9]\\d{7,8}$/', 'placeholder' => '+355 4 123 4567', 'example' => '+355 4 123 4567'],
+    'DZ' => ['prefix' => '+213', 'pattern' => '/^\\+213[1-9]\\d{8}$/', 'placeholder' => '+213 21 12 34 56', 'example' => '+213 21 12 34 56'],
+    'AR' => ['prefix' => '+54', 'pattern' => '/^\\+54[1-9]\\d{9,10}$/', 'placeholder' => '+54 11 1234-5678', 'example' => '+54 11 1234-5678'],
+    'AT' => ['prefix' => '+43', 'pattern' => '/^\\+43[1-9]\\d{9,10}$/', 'placeholder' => '+43 1 234 5678', 'example' => '+43 1 234 5678'],
+    'BD' => ['prefix' => '+880', 'pattern' => '/^\\+880[1-9]\\d{9}$/', 'placeholder' => '+880 2 1234 5678', 'example' => '+880 2 1234 5678'],
+    'BE' => ['prefix' => '+32', 'pattern' => '/^\\+32[1-9]\\d{8}$/', 'placeholder' => '+32 2 123 45 67', 'example' => '+32 2 123 45 67'],
+    'BR' => ['prefix' => '+55', 'pattern' => '/^\\+55[1-9]\\d{10,11}$/', 'placeholder' => '+55 11 91234-5678', 'example' => '+55 11 91234-5678'],
+    'CN' => ['prefix' => '+86', 'pattern' => '/^\\+861[3-9]\\d{9}$/', 'placeholder' => '+86 138 0013 8000', 'example' => '+86 138 0013 8000'],
+    'DK' => ['prefix' => '+45', 'pattern' => '/^\\+45[1-9]\\d{7,8}$/', 'placeholder' => '+45 12 34 56 78', 'example' => '+45 12 34 56 78'],
+    'EG' => ['prefix' => '+20', 'pattern' => '/^\\+20[1-9]\\d{9}$/', 'placeholder' => '+20 2 1234 5678', 'example' => '+20 2 1234 5678'],
+    'GH' => ['prefix' => '+233', 'pattern' => '/^\\+233[2-9]\\d{8}$/', 'placeholder' => '+233 24 123 4567', 'example' => '+233 24 123 4567'],
+    'IN' => ['prefix' => '+91', 'pattern' => '/^\\+91[6-9]\\d{9}$/', 'placeholder' => '+91 98765 43210', 'example' => '+91 98765 43210'],
+    'ID' => ['prefix' => '+62', 'pattern' => '/^\\+62[2-9]\\d{8,11}$/', 'placeholder' => '+62 21 1234 5678', 'example' => '+62 21 1234 5678'],
+    'IE' => ['prefix' => '+353', 'pattern' => '/^\\+353[1-9]\\d{8,9}$/', 'placeholder' => '+353 1 234 5678', 'example' => '+353 1 234 5678'],
+    'IT' => ['prefix' => '+39', 'pattern' => '/^\\+39[1-9]\\d{8,10}$/', 'placeholder' => '+39 06 1234 5678', 'example' => '+39 06 1234 5678'],
+    'JP' => ['prefix' => '+81', 'pattern' => '/^\\+81[1-9]\\d{9,10}$/', 'placeholder' => '+81 3 1234 5678', 'example' => '+81 3 1234 5678'],
+    'KE' => ['prefix' => '+254', 'pattern' => '/^\\+254[1-9]\\d{8}$/', 'placeholder' => '+254 20 123 4567', 'example' => '+254 20 123 4567'],
+    'MY' => ['prefix' => '+60', 'pattern' => '/^\\+60[1-9]\\d{8,9}$/', 'placeholder' => '+60 3 1234 5678', 'example' => '+60 3 1234 5678'],
+    'MX' => ['prefix' => '+52', 'pattern' => '/^\\+52[1-9]\\d{9,10}$/', 'placeholder' => '+52 55 1234 5678', 'example' => '+52 55 1234 5678'],
+    'NL' => ['prefix' => '+31', 'pattern' => '/^\\+31[1-9]\\d{8,9}$/', 'placeholder' => '+31 20 123 4567', 'example' => '+31 20 123 4567'],
+    'NZ' => ['prefix' => '+64', 'pattern' => '/^\\+64[1-9]\\d{8,9}$/', 'placeholder' => '+64 9 123 4567', 'example' => '+64 9 123 4567'],
+    'PK' => ['prefix' => '+92', 'pattern' => '/^\\+92[1-9]\\d{9}$/', 'placeholder' => '+92 21 1234 5678', 'example' => '+92 21 1234 5678'],
+    'PH' => ['prefix' => '+63', 'pattern' => '/^\\+63[1-9]\\d{9}$/', 'placeholder' => '+63 2 123 4567', 'example' => '+63 2 123 4567'],
+    'PL' => ['prefix' => '+48', 'pattern' => '/^\\+48[1-9]\\d{8}$/', 'placeholder' => '+48 22 123 45 67', 'example' => '+48 22 123 45 67'],
+    'PT' => ['prefix' => '+351', 'pattern' => '/^\\+351[1-9]\\d{8}$/', 'placeholder' => '+351 21 123 4567', 'example' => '+351 21 123 4567'],
+    'RU' => ['prefix' => '+7', 'pattern' => '/^\\+7[1-9]\\d{9,10}$/', 'placeholder' => '+7 495 123 45 67', 'example' => '+7 495 123 45 67'],
+    'SG' => ['prefix' => '+65', 'pattern' => '/^\\+65[689]\\d{7}$/', 'placeholder' => '+65 6123 4567', 'example' => '+65 6123 4567'],
+    'ZA' => ['prefix' => '+27', 'pattern' => '/^\\+27[1-9]\\d{8,9}$/', 'placeholder' => '+27 11 123 4567', 'example' => '+27 11 123 4567'],
+    'KR' => ['prefix' => '+82', 'pattern' => '/^\\+82[1-9]\\d{8,9}$/', 'placeholder' => '+82 2 1234 5678', 'example' => '+82 2 1234 5678'],
+    'ES' => ['prefix' => '+34', 'pattern' => '/^\\+34[6-9]\\d{8}$/', 'placeholder' => '+34 612 34 56 78', 'example' => '+34 612 34 56 78'],
+    'SE' => ['prefix' => '+46', 'pattern' => '/^\\+46[1-9]\\d{8,9}$/', 'placeholder' => '+46 8 123 456 78', 'example' => '+46 8 123 456 78'],
+    'CH' => ['prefix' => '+41', 'pattern' => '/^\\+41[1-9]\\d{8}$/', 'placeholder' => '+41 44 123 45 67', 'example' => '+41 44 123 45 67'],
+    'TH' => ['prefix' => '+66', 'pattern' => '/^\\+66[1-9]\\d{8,9}$/', 'placeholder' => '+66 2 123 4567', 'example' => '+66 2 123 4567'],
+    'TR' => ['prefix' => '+90', 'pattern' => '/^\\+90[1-9]\\d{9}$/', 'placeholder' => '+90 212 123 45 67', 'example' => '+90 212 123 45 67'],
 ];
 
 // Set the active currency
@@ -344,20 +344,7 @@ select.form-input-sleek { background-image: url("data:image/svg+xml,%3csvg xmlns
         <div class="step-header"><div class="step-circle">2</div><h2>Shipping Address</h2></div>
         <div class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-                <div>
-                    <label for="full-name" class="block text-sm font-medium text-brand-gray mb-1">Full Name</label><input type="text" id="full-name" name="full-name" class="form-input-sleek" placeholder="Jane Doe" required>
-                </div>
-                 <div>
-                <label for="country" class="block text-sm font-medium text-brand-gray mb-1">Country</label>
-                <select id="country" name="country" class="form-input-sleek" required>
-                    <option value="">-- Select a Country --</option>
-                    <?php foreach ($countriesData as $code => $country): ?>
-                        <option value="<?= $code ?>" <?= ($code === 'NG') ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($country['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
+                <div><label for="full-name" class="block text-sm font-medium text-brand-gray mb-1">Full Name</label><input type="text" id="full-name" name="full-name" class="form-input-sleek" placeholder="Jane Doe" required></div>
                 <div>
                     <label for="phone-number" class="block text-sm font-medium text-brand-gray mb-1">Phone Number</label>
                     <input type="tel" id="phone-number" name="phone-number" class="form-input-sleek" placeholder="e.g. 08012345678" required>
@@ -370,7 +357,20 @@ select.form-input-sleek { background-image: url("data:image/svg+xml,%3csvg xmlns
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
                 <div><label for="apartment" class="block text-sm font-medium text-brand-gray mb-1">Apartment, Suite, etc. <span class="text-gray-400">(Optional)</span></label><input type="text" id="apartment" name="apartment" class="form-input-sleek" placeholder="Apt 4B, Suite 200"></div>
-                            </div>
+                <div><label for="company" class="block text-sm font-medium text-brand-gray mb-1">Company <span class="text-gray-400">(Optional)</span></label><input type="text" id="company" name="company" class="form-input-sleek" placeholder="Company Name"></div>
+            </div>
+            
+            <div>
+                <label for="country" class="block text-sm font-medium text-brand-gray mb-1">Country</label>
+                <select id="country" name="country" class="form-input-sleek" required>
+                    <option value="">-- Select a Country --</option>
+                    <?php foreach ($countriesData as $code => $country): ?>
+                        <option value="<?= $code ?>" <?= ($code === 'NG') ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($country['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-6">
                 <div><label for="city" class="block text-sm font-medium text-brand-gray mb-1">City</label><input type="text" id="city" name="city" class="form-input-sleek" required></div>
@@ -391,7 +391,7 @@ select.form-input-sleek { background-image: url("data:image/svg+xml,%3csvg xmlns
                 <div><label for="postal-code" class="block text-sm font-medium text-brand-gray mb-1">Postal Code / ZIP</label><input type="text" id="postal-code" name="postal-code" class="form-input-sleek" placeholder="12345" required></div>
             </div>
 
-             
+
             <!-- Shipping Instructions and Delivery Preferences -->
             <div class="space-y-4">
                 <h3 class="text-lg font-serif font-semibold text-brand-text">Delivery Preferences</h3>
@@ -415,6 +415,21 @@ select.form-input-sleek { background-image: url("data:image/svg+xml,%3csvg xmlns
                             <option value="evening">Evening (5 PM - 8 PM)</option>
                         </select>
                     </div>
+
+                </div>
+
+                <div class="flex items-start space-x-3">
+                    <input type="checkbox" id="signature-required" name="signature-required" class="mt-1">
+                    <label for="signature-required" class="text-sm text-brand-gray">
+                        Require signature upon delivery (Recommended for high-value items)
+                    </label>
+                </div>
+
+                <div class="flex items-start space-x-3">
+                    <input type="checkbox" id="insurance-required" name="insurance-required" class="mt-1">
+                    <label for="insurance-required" class="text-sm text-brand-gray">
+                        Add shipping insurance (Recommended for international orders)
+                    </label>
                 </div>
             </div>
         </div>
@@ -516,7 +531,6 @@ select.form-input-sleek { background-image: url("data:image/svg+xml,%3csvg xmlns
 <footer class="bg-white border-t border-gray-200 mt-16"><div class="container mx-auto px-6 py-8 text-center text-sm text-brand-gray"><p>© <?=date('Y')?> <?=$site_name?>. All Rights Reserved.</p></div></footer>
 
 <script>
-console.log('Script loaded');
 document.addEventListener('DOMContentLoaded', () => {
     feather.replace();
 
@@ -524,35 +538,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // NOTE: This array is passed from PHP and contains ALL countries and their states.
     const countriesData = <?= json_encode($countriesData); ?>;
     
+    // Country-specific shipping fees
+    const countryShippingFees = <?= $jsCountryShippingFees; ?>;
 
     const countrySelect = document.getElementById('country');
     const stateSelectWrapper = document.getElementById('state-select-wrapper');
     const stateSelect = document.getElementById('state-select');
     const stateInputWrapper = document.getElementById('state-input-wrapper');
     const stateInput = document.getElementById('state-input');
-    const phoneInput = document.getElementById('phone-number');
-    const phoneValidationMessage = document.getElementById('phone-validation-message');
-    const phoneFormatExample = document.getElementById('phone-format-example');
-
-    // Function to format phone number with country prefix
-    function formatPhoneNumber(phoneNumber, countryCode) {
-        const rules = PHONE_VALIDATION_RULES[countryCode];
-        if (!rules) return phoneNumber;
-
-        // Remove all non-digit characters except +
-        let cleaned = phoneNumber.replace(/[^\d+]/g, '');
-
-        // If it starts with 0, replace with country prefix
-        if (cleaned.startsWith('0')) {
-            cleaned = rules.prefix + cleaned.substring(1);
-        }
-        // If it doesn't start with + or country prefix, add country prefix
-        else if (!cleaned.startsWith('+')) {
-            cleaned = rules.prefix + cleaned;
-        }
-
-        return cleaned;
-    }
+    const shippingLocationContainer = document.getElementById('shipping-location-container');
+    const shippingLocationSelect = document.getElementById('shipping-location');
+    const shippingLocationLabel = document.getElementById('shipping-location-label');
+    const shippingInfo = document.getElementById('shipping-info');
+    const shippingInfoText = document.getElementById('shipping-info-text');
 
     function updateStateField() {
         const selectedCountryCode = countrySelect.value;
@@ -585,53 +583,35 @@ document.addEventListener('DOMContentLoaded', () => {
             stateSelect.required = false;
             stateInput.required = true;
         }
+
+        // Handle country-specific shipping location
+        updateShippingFee();
     }
 
-    // Function to update phone field based on country
-    function updatePhoneField(countryCode) {
-        const rules = PHONE_VALIDATION_RULES[countryCode];
-        if (rules) {
-            phoneInput.placeholder = rules.placeholder;
-            phoneFormatExample.textContent = `Example: ${rules.example}`;
-            phoneFormatExample.classList.remove('hidden');
-            // Set prefix if not present
-            if (!phoneInput.value.startsWith(rules.prefix)) {
-                phoneInput.value = rules.prefix;
+    // Function to update shipping options based on selected country
+    function updateShippingFee() {
+        const countryCode = countrySelect.value;
+        const stateCode = stateSelect.value;
+        let fee = 0;
+
+        if (countryCode === 'NG') {
+            // Handle Nigeria state-based shipping
+            if (stateCode && countryShippingFees[countryCode]) {
+                const stateData = countryShippingFees[countryCode].find(loc => loc.location_name.toLowerCase() === countriesData[countryCode].states[stateCode].toLowerCase());
+                if (stateData) {
+                    fee = parseFloat(stateData.fee);
+                }
             }
-            // Make prefix non-deletable
-            phoneInput.addEventListener('keydown', function(e) {
-                const prefixLen = rules.prefix.length;
-                if (this.selectionStart <= prefixLen && (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'ArrowLeft')) {
-                    e.preventDefault();
-                    this.setSelectionRange(prefixLen, prefixLen);
-                }
-            });
-            phoneInput.addEventListener('focus', function() {
-                const prefixLen = rules.prefix.length;
-                if (!this.value.startsWith(rules.prefix)) {
-                    this.value = rules.prefix;
-                }
-                // Always place cursor after prefix
-                setTimeout(() => this.setSelectionRange(this.value.length, this.value.length), 0);
-            });
-            phoneInput.addEventListener('click', function() {
-                const prefixLen = rules.prefix.length;
-                if (this.selectionStart < prefixLen) {
-                    this.setSelectionRange(prefixLen, prefixLen);
-                }
-            });
-        } else {
-            phoneInput.placeholder = 'e.g. +1234567890';
-            phoneFormatExample.textContent = 'Example: +1234567890';
-            phoneFormatExample.classList.remove('hidden');
-            if (!phoneInput.value.startsWith('+')) {
-                phoneInput.value = '+';
-            }
+        } else if (countryShippingFees[countryCode] && countryShippingFees[countryCode].length > 0) {
+            // Handle other countries (use the first available fee)
+            fee = parseFloat(countryShippingFees[countryCode][0].fee);
         }
-        
-        // Clear validation messages
-        phoneValidationMessage.classList.add('hidden');
+
+        shippingFee = fee;
+        updateOrderSummary();
     }
+
+    stateSelect.addEventListener('change', updateShippingFee);
 
     // --- CURRENCY LOGIC ---
     const USD_RATE_TO_NGN = <?= USD_EXCHANGE_RATE ?>;
@@ -643,35 +623,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const currencySwitchBtn = document.getElementById('currency-switch-btn');
 
-    // Function to fetch USD to target currency rate
-    const getExchangeRate = async (currencyCode) => {
-        if (currencyCode === 'USD') return 1.0; 
-        if (currencyCode === 'NGN') return USD_RATE_TO_NGN; 
+    // --- PHONE VALIDATION LOGIC ---
+    const phoneInput = document.getElementById('phone-number');
+    const phoneValidationMessage = document.getElementById('phone-validation-message');
+    const phoneFormatExample = document.getElementById('phone-format-example');
+
+    // Function to validate phone number based on country
+    function validatePhoneNumber(phoneNumber, countryCode) {
+        const rules = PHONE_VALIDATION_RULES[countryCode];
+        if (!rules) {
+            return { isValid: true, message: '' }; // No validation rules for this country
+        }
+
+        // Clean the number by removing all spaces to prepare for validation.
+        const cleanedNumber = phoneNumber.replace(/\s/g, '');
+
+        // The regex pattern is designed to match the full number including the prefix.
+        const pattern = new RegExp(rules.pattern);
+        const isValid = pattern.test(cleanedNumber);
         
+        if (!isValid) {
+            return {
+                isValid: false,
+                message: `Invalid phone number format for ${countriesData[countryCode]?.name || 'selected country'}. Expected format: ${rules.example}`
+            };
+        }
+
+        return { isValid: true, message: '' };
+    }
+
+    // Function to format phone number with country prefix
+    function formatPhoneNumber(phoneNumber, countryCode) {
+        const rules = PHONE_VALIDATION_RULES[countryCode];
+        if (!rules) return phoneNumber;
+
+        // Remove all non-digit characters except +
+        let cleaned = phoneNumber.replace(/[^\d+]/g, '');
+        
+        // If it starts with 0, replace with country prefix
+        if (cleaned.startsWith('0')) {
+            cleaned = rules.prefix + cleaned.substring(1);
+        }
+        // If it doesn't start with + or country prefix, add country prefix
+        else if (!cleaned.startsWith('+')) {
+            cleaned = rules.prefix + cleaned;
+    }
+
+    async function getExchangeRate(currency) {
+        if (currency === 'USD') return 1.0;
+        if (currency === 'NGN') return <?= USD_EXCHANGE_RATE; ?>;
+
+        const cacheKey = `exchange_rate_${currency}`;
+        const cachedRate = sessionStorage.getItem(cacheKey);
+        if (cachedRate) return parseFloat(cachedRate);
+
         try {
-            // Use a free, reliable API (Exchangerate.host)
-            const apiUrl = `https://api.exchangerate.host/latest?base=USD&symbols=${currencyCode}`;
-            const response = await fetch(apiUrl);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            const response = await fetch(`https://api.exchangerate.host/latest?base=USD&symbols=${currency}`);
+            if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
             
             const data = await response.json();
-            
-            if (data.success && data.rates && data.rates[currencyCode]) {
-                const rate = parseFloat(data.rates[currencyCode]);
-                console.log(`Exchange rate for ${currencyCode}: 1 USD = ${rate} ${currencyCode}`);
+            if (data.success && data.rates && data.rates[currency]) {
+                const rate = parseFloat(data.rates[currency]);
+                sessionStorage.setItem(cacheKey, rate);
                 return rate;
-            } else {
-                throw new Error(`Invalid response format for ${currencyCode}`);
+            } else if (data.success && data.rates) { // Handle KES-like responses
+                const rate = parseFloat(data.rates[Object.keys(data.rates)[0]]);
+                if (!isNaN(rate)) {
+                    sessionStorage.setItem(cacheKey, rate);
+                    return rate;
+                }
             }
-        } catch (e) {
-            console.error('Failed to fetch exchange rate for ' + currencyCode, e);
-            
-            // Fallback rates for common currencies (approximate)
-            const fallbackRates = {
-                'EUR': 0.85,
+            throw new Error('Invalid API response format for ' + currency);
+        } catch (error) {
+            console.error(`Failed to fetch exchange rate for ${currency}:`, error);
+            showToast(`Error: Could not fetch rate for ${currency}.`, 'error');
+            return null;
                 'GBP': 0.73,
                 'CAD': 1.25,
                 'AUD': 1.35,
@@ -837,16 +863,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             // Fallback for browsers that don't support the currency code
             const symbolMap = { 
-                'NGN': '', 'USD': '$', 'EUR': '', 'GBP': '', 'CAD': 'C$', 'AUD': 'A$',
-                'JPY': '', 'CNY': '', 'INR': '', 'BRL': 'R$', 'MXN': '$', 'RUB': '',
-                'KRW': '', 'SGD': 'S$', 'HKD': 'HK$', 'THB': '', 'MYR': 'RM', 'IDR': 'Rp',
-                'PHP': '', 'VND': '', 'AED': 'د.إ', 'SAR': 'ر.س', 'QAR': 'ر.ق', 'KWD': 'د.ك',
+                'NGN': '₦', 'USD': '$', 'EUR': '€', 'GBP': '£', 'CAD': 'C$', 'AUD': 'A$',
+                'JPY': '¥', 'CNY': '¥', 'INR': '₹', 'BRL': 'R$', 'MXN': '$', 'RUB': '₽',
+                'KRW': '₩', 'SGD': 'S$', 'HKD': 'HK$', 'THB': '฿', 'MYR': 'RM', 'IDR': 'Rp',
+                'PHP': '₱', 'VND': '₫', 'AED': 'د.إ', 'SAR': 'ر.س', 'QAR': 'ر.ق', 'KWD': 'د.ك',
                 'BHD': 'د.ب', 'OMR': 'ر.ع.', 'JOD': 'د.أ', 'LBP': 'ل.ل', 'EGP': 'ج.م', 'MAD': 'د.م.',
                 'TND': 'د.ت', 'DZD': 'د.ج', 'LYD': 'ل.د', 'ETB': 'ብር', 'KES': 'KSh', 'UGX': 'USh',
                 'TZS': 'TSh', 'ZMW': 'ZK', 'BWP': 'P', 'SZL': 'E', 'LSL': 'L', 'NAD': 'N$',
                 'MZN': 'MT', 'AOA': 'Kz', 'XOF': 'CFA', 'XAF': 'FCFA', 'CDF': 'FC', 'RWF': 'RF',
                 'BIF': 'FBu', 'KMF': 'CF', 'DJF': 'Fdj', 'SOS': 'S', 'ERN': 'Nfk', 'GMD': 'D',
-                'GNF': 'FG', 'LRD': 'L$', 'MGA': 'Ar', 'MWK': 'MK', 'MUR': '', 'SCR': '',
+                'GNF': 'FG', 'LRD': 'L$', 'MGA': 'Ar', 'MWK': 'MK', 'MUR': '₨', 'SCR': '₨',
                 'SLL': 'Le', 'STN': 'Db'
             };
             
@@ -878,16 +904,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const currencyCode = document.getElementById('currency-code');
         
         const symbolMap = { 
-            'NGN': '', 'USD': '$', 'EUR': '', 'GBP': '', 'CAD': 'C$', 'AUD': 'A$',
-            'JPY': '', 'CNY': '', 'INR': '', 'BRL': 'R$', 'MXN': '$', 'RUB': '',
-            'KRW': '', 'SGD': 'S$', 'HKD': 'HK$', 'THB': '', 'MYR': 'RM', 'IDR': 'Rp',
-            'PHP': '', 'VND': '', 'AED': 'د.إ', 'SAR': 'ر.س', 'QAR': 'ر.ق', 'KWD': 'د.ك',
+            'NGN': '₦', 'USD': '$', 'EUR': '€', 'GBP': '£', 'CAD': 'C$', 'AUD': 'A$',
+            'JPY': '¥', 'CNY': '¥', 'INR': '₹', 'BRL': 'R$', 'MXN': '$', 'RUB': '₽',
+            'KRW': '₩', 'SGD': 'S$', 'HKD': 'HK$', 'THB': '฿', 'MYR': 'RM', 'IDR': 'Rp',
+            'PHP': '₱', 'VND': '₫', 'AED': 'د.إ', 'SAR': 'ر.س', 'QAR': 'ر.ق', 'KWD': 'د.ك',
             'BHD': 'د.ب', 'OMR': 'ر.ع.', 'JOD': 'د.أ', 'LBP': 'ل.ل', 'EGP': 'ج.م', 'MAD': 'د.م.',
             'TND': 'د.ت', 'DZD': 'د.ج', 'LYD': 'ل.د', 'ETB': 'ብር', 'KES': 'KSh', 'UGX': 'USh',
             'TZS': 'TSh', 'ZMW': 'ZK', 'BWP': 'P', 'SZL': 'E', 'LSL': 'L', 'NAD': 'N$',
             'MZN': 'MT', 'AOA': 'Kz', 'XOF': 'CFA', 'XAF': 'FCFA', 'CDF': 'FC', 'RWF': 'RF',
             'BIF': 'FBu', 'KMF': 'CF', 'DJF': 'Fdj', 'SOS': 'S', 'ERN': 'Nfk', 'GMD': 'D',
-            'GNF': 'FG', 'LRD': 'L$', 'MGA': 'Ar', 'MWK': 'MK', 'MUR': '', 'SCR': '',
+            'GNF': 'FG', 'LRD': 'L$', 'MGA': 'Ar', 'MWK': 'MK', 'MUR': '₨', 'SCR': '₨',
             'SLL': 'Le', 'STN': 'Db'
         };
         
@@ -899,37 +925,23 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update the manual currency toggle button text
         let btnText = '';
         if (targetCurrency === 'NGN') {
-             btnText = 'Switch to USD ';
+             btnText = 'Switch to USD 🇺🇸';
         } else if (targetCurrency === 'USD') {
-             btnText = 'Switch to NGN ';
+             btnText = 'Switch to NGN 🇳🇬';
         } else {
              // For any other currency (e.g., EUR), let the button switch back to NGN (the site's base)
-             btnText = `Switch to NGN `;
+             btnText = `Switch to NGN 🇳🇬`;
         }
         currencySwitchBtn.textContent = btnText;
     }
 
-    // Country Select Change Listener
+    // Country Select Change Listener (THE CORE OF THE REQUEST)
     countrySelect.addEventListener('change', async (e) => {
         // 1. Update the state/province fields visibility
         updateStateField(); 
 
         // 2. Update phone field based on country
-        const prevPrefix = PHONE_VALIDATION_RULES[activeCurrency]?.prefix || '';
-        const newCountry = e.target.value;
-        const newRules = PHONE_VALIDATION_RULES[newCountry];
-        if (newRules) {
-            const current = phoneInput.value;
-            // Remove old prefix if present
-            let rest = current;
-            if (current.startsWith(prevPrefix)) {
-                rest = current.slice(prevPrefix.length);
-            } else if (current.startsWith('+')) {
-                rest = current.replace(/^\+\d+/, '');
-            }
-            phoneInput.value = newRules.prefix + rest.replace(/[^\d]/g, '');
-        }
-        updatePhoneField(newCountry);
+        updatePhoneField(e.target.value);
 
         // 3. Determine and switch currency
         const selectedCountryCode = e.target.value;
@@ -1012,6 +1024,7 @@ document.addEventListener('DOMContentLoaded', () => {
         paystackButton: document.getElementById('paystack-button'),
         whatsappButton: document.getElementById('whatsapp-button'),
         checkoutForm: document.getElementById('checkout-form'),
+        shippingLocation: document.getElementById('shipping-location'),
         discountCodeInput: document.getElementById('discount-code-input'),
         applyDiscountBtn: document.getElementById('apply-discount-btn'),
         discountFeedback: document.getElementById('discount-feedback'),
@@ -1037,6 +1050,29 @@ document.addEventListener('DOMContentLoaded', () => {
         // Call the general price update function with the currently active currency
         updateAllPrices(activeCurrency);
     };
+
+    // Shipping location change event
+    selectors.shippingLocation.addEventListener('change', (e) => {
+        const selectedOption = e.target.options[e.target.selectedIndex];
+        if (selectedOption.value) {
+            // Get the fee and currency
+            const fee = parseFloat(selectedOption.dataset.fee) || 0;
+            const currency = selectedOption.dataset.currency || 'NGN';
+            
+            // Convert fee to NGN if it's in a different currency
+            if (currency === 'NGN') {
+                shippingFee = fee;
+            } else {
+                // Convert from the fee's currency to NGN
+                // This assumes the fee is stored in the country's local currency
+                // You might need to adjust this logic based on your database structure
+                shippingFee = fee; // For now, assuming fees are already in NGN
+            }
+        } else {
+            shippingFee = 0;
+        }
+        updateOrderSummary();
+    });
 
     // Apply Discount Function
     selectors.applyDiscountBtn.addEventListener('click', async () => {
@@ -1119,12 +1155,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 phoneNumber: formatPhoneNumber(document.getElementById('phone-number').value, countrySelect.value),
                 address: document.getElementById('address').value,
                 apartment: document.getElementById('apartment').value,
+                company: document.getElementById('company').value,
                 city: document.getElementById('city').value,
                 state: stateValue,
                 postalCode: document.getElementById('postal-code').value,
                 country: countrySelect.options[countrySelect.selectedIndex].text,
                 deliveryInstructions: document.getElementById('delivery-instructions').value,
-                deliveryTimePreference: document.getElementById('delivery-time-preference').value
+                deliveryTimePreference: document.getElementById('delivery-time-preference').value,
+                signatureRequired: document.getElementById('signature-required').checked,
+                insuranceRequired: document.getElementById('insurance-required').checked,
             },
             discountCode: selectors.discountCodeInput.value.trim() || null
         };
@@ -1189,6 +1228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const phone = formatPhoneNumber(document.getElementById('phone-number').value, countrySelect.value);
         const address = document.getElementById('address').value;
         const apartment = document.getElementById('apartment').value;
+        const company = document.getElementById('company').value;
         const city = document.getElementById('city').value;
         const postalCode = document.getElementById('postal-code').value;
         
@@ -1202,10 +1242,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const total = document.getElementById('summary-total').textContent;
         const deliveryInstructions = document.getElementById('delivery-instructions').value;
+        const signatureRequired = document.getElementById('signature-required').checked;
+        const insuranceRequired = document.getElementById('insurance-required').checked;
 
         let message = `Hello, I want to place an order:\n\n` +
                       `*Name:* ${fullName}\n` +
                       `*Phone:* ${phone}\n`;
+        
+        if (company) {
+            message += `*Company:* ${company}\n`;
+        }
         
         let addressLine = address;
         if (apartment) {
@@ -1215,12 +1261,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         message += `*Address:* ${addressLine}\n`;
         
-        // if (countrySelect.value === 'NG' && shippingLocationSelect.value) {
-        //     message += `*Shipping Location (NG):* ${shippingLocationName}\n`;
-        // }
-        
         if (deliveryInstructions) {
             message += `*Delivery Instructions:* ${deliveryInstructions}\n`;
+        }
+        
+        if (signatureRequired) {
+            message += `*Signature Required:* Yes\n`;
+        }
+        
+        if (insuranceRequired) {
+            message += `*Insurance Required:* Yes\n`;
         }
 
         message += `*Grand Total:* ${total}\n` +

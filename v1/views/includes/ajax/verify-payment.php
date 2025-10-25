@@ -2,10 +2,24 @@
 // PHP SETUP & SECURITY
 session_start();
 // Make sure to include your database connection file.
-// require 'config/db_connection.php';
+// This file MUST define your $conn (PDO) object
+// IMPORTANT: UNCOMMENT THIS LINE if your connection file is named db_connection.php
+// require 'config/db_connection.php'; 
+
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
+// =================================================================
+// TEMPORARY DEBUG CHECK: Check if $conn exists before proceeding
+// If this echoes, your database connection file is missing or failing.
+if (!isset($conn) || !($conn instanceof PDO)) {
+    // DO NOT LEAVE THIS LIVE. Use only for debugging.
+    header('Content-Type: text/plain');
+    die("CRITICAL ERROR: Database connection (\$conn) is not defined or is not a PDO object. Check your 'require' statement and connection file.");
+}
+// =================================================================
+
 
 // =================================================================
 // 1. PAYMENT VERIFICATION LOGIC
@@ -18,7 +32,7 @@ if (!$reference) {
 }
 
 // IMPORTANT: Add a secret token for secure owner-side invoice viewing
-define('OWNER_VIEW_SECRET_TOKEN', 'k7D!aP@9zXyR5n$2BwFjLq#tVc1gH6mE'); 
+define('OWNER_VIEW_SECRET_TOKEN', 'k7D!aP@9zXyR5n$2BwFjLq#tVc1gH6mE');
 // A good token is long and randomly generated. Replace this with a unique value.
 
 // Check if the payment was already processed
@@ -61,7 +75,7 @@ $emailContext = null;
 
 // Check for successful payment from Paystack
 if (isset($result->status) && $result->status == true && isset($result->data->status) && $result->data->status == 'success') {
-    
+
     $conn->beginTransaction();
     try {
         // Update order status and set payment reference
@@ -79,15 +93,15 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
 
         if ($order) {
             $shippingDetails = json_decode($order['shipping_address'], true);
-            
+
             // Build the WhatsApp message string
             $whatsappMessage = "🎉 New Paid Order! ✅\n\n" .
-                               "Order #: " . htmlspecialchars($order['order_number']) . "\n" .
-                               "Status: Paid\n" .
-                               "Customer: " . htmlspecialchars($shippingDetails['fullName'] ?? 'N/A') . "\n" .
-                               "Phone: " . htmlspecialchars($shippingDetails['phoneNumber'] ?? 'N/A') . "\n" .
-                               "Address: " . htmlspecialchars($shippingDetails['address'] ?? 'N/A') . "\n" .
-                               "Total: ₦" . number_format($order['grand_total'], 2) . "\n\n";
+                "Order #: " . htmlspecialchars($order['order_number']) . "\n" .
+                "Status: Paid\n" .
+                "Customer: " . htmlspecialchars($shippingDetails['fullName'] ?? 'N/A') . "\n" .
+                "Phone: " . htmlspecialchars($shippingDetails['phoneNumber'] ?? 'N/A') . "\n" .
+                "Address: " . htmlspecialchars($shippingDetails['address'] ?? 'N/A') . "\n" .
+                "Total: ₦" . number_format($order['grand_total'], 2) . "\n\n";
 
             // Add the invoice link for YOUR reference
             $websiteUrl = 'https://viennabytnq.com'; // Or your live domain, e.g., 'https://yourwebsite.com'
@@ -123,7 +137,7 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
                 $clearCartStmt->execute([$cartToken]);
             }
         }
-        
+
         $conn->commit();
 
         // Decrement stock for each product in the order
@@ -131,50 +145,134 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
         $cart = json_decode($order['cart'], true);
         foreach ($cart as $item) {
             $updateStmt->execute([$item['quantity'], $item['product_id']]);
-            
+
             // Check if stock reached zero and disable product
             $checkStmt = $conn->prepare("SELECT stock_quantity FROM panel_products WHERE id = ?");
             $checkStmt->execute([$item['product_id']]);
             $stock = $checkStmt->fetchColumn();
-            
+
             if ($stock <= 0) {
                 $disableStmt = $conn->prepare("UPDATE panel_products SET visibility = 'hide' WHERE id = ?");
                 $disableStmt->execute([$item['product_id']]);
             }
         }
 
+        // =================================================================
+        // 3. LOAD SITE SETTINGS FOR EMAIL (RELYING on selectContent ONLY)
+        // =================================================================
+        
+        // Define default values in case settings are missing
+        $site_email = '';
+        $site_email_2 = '';
+        $site_email_from = '';
+        $site_email_password = '';
+        $site_email_smtp_host = '';
+        $site_email_smtp_secure_type = '';
+        $site_email_smtp_port = '';
+        $site_name = 'VIENNA BY TNQ'; // Default site name
+
+        try {
+            $settings = null;
+            
+            // Check if the user's custom function is available to prevent a fatal error.
+            if (function_exists('selectContent')) {
+                // --- Using the user's suggested function call ---
+                $websiteInfo = selectContent($conn, "read_website_info", ['visibility' => 'show']);
+                
+                // Normalize the result: take the first element if it's an array of results, 
+                // otherwise assume it's the single result row itself.
+                if (is_array($websiteInfo)) {
+                    if (isset($websiteInfo[0]) && is_array($websiteInfo[0])) {
+                        // It's an array of results, use the first one
+                        $settings = $websiteInfo[0];
+                    } elseif (!empty($websiteInfo) && !isset($websiteInfo[0])) {
+                        // It's likely a single associative row (e.g., if selectContent optimized the result)
+                        $settings = $websiteInfo;
+                    }
+                }
+
+                if (!$settings) {
+                    error_log("CRITICAL: selectContent() returned no usable site settings. Emails will fail or use defaults.");
+                }
+            } else {
+                 error_log("CRITICAL: selectContent() function is missing. Site settings were not loaded.");
+            }
+
+            if ($settings) {
+                // Assign database values to the variables the email function needs
+                $site_email                  = $settings['input_email'] ?? '';
+                $site_email_2                = $settings['input_email_2'] ?? '';
+                $site_email_from             = $settings['input_email_from'] ?? '';
+                $site_email_password         = $settings['input_email_password'] ?? ''; // This will be 'glplukrjtkmtrlcx'
+                $site_email_smtp_host        = $settings['input_email_smtp_host'] ?? '';
+                $site_email_smtp_secure_type = $settings['input_email_smtp_secure_type'] ?? '';
+                $site_email_smtp_port        = $settings['input_email_smtp_port'] ?? '';
+                $site_name                   = $settings['input_name'] ?? 'VIENNA BY TNQ';
+            }
+        } catch (Exception $e) {
+            // This catches database/query errors and logs them
+            error_log("Failed to query site settings: " . $e->getMessage());
+        }
+
+        // =================================================================
+        // 4. SEND ORDER EMAILS (Your existing email code starts here)
+        // =================================================================
+
         if (!empty($emailContext)) {
+            // Note: Make sure APP_PATH is defined elsewhere, or replace with the actual path
             require_once APP_PATH . '/phpm/PHPMailerAutoload.php';
 
             if (!function_exists('initOrderMailer')) {
                 function initOrderMailer() {
+                    // Now this function will have the correct values loaded from the DB
                     global $site_email, $site_name, $site_email_from, $site_email_password, $site_email_smtp_host, $site_email_smtp_secure_type, $site_email_smtp_port;
 
                     $mail = new PHPMailer;
                     $mail->isSMTP();
+                    $mail->SMTPDebug = 2; // Keep this on to check logs if it fails again
+                    $mail->Debugoutput = function ($message) {
+                        error_log('PHPMailer: ' . $message);
+                    };
                     $mail->SMTPAuth = true;
                     $mail->CharSet = 'UTF-8';
 
-                    $fromAddress = $site_email ?: $site_email_from;
+                    // Use the loaded settings
+                    $fromAddress = trim($site_email ?: $site_email_from ?: '');
                     if (empty($fromAddress)) {
                         $fromAddress = 'no-reply@' . ($_SERVER['HTTP_HOST'] ?? 'viennabytnq.com');
                     }
-                    $fromName = $site_name ?: 'Vienna by TNQ';
+                    $fromName = trim($site_name ?? '') ?: 'Vienna by TNQ';
 
                     $mail->setFrom($fromAddress, $fromName);
                     $mail->addReplyTo($fromAddress, $fromName);
+                    
+                    // Use the loaded settings
+                    $host = trim($site_email_smtp_host ?? '');
+                    $mail->Host = $host !== '' ? $host : 'smtp.gmail.com'; // Default to gmail if empty
 
-                    $mail->Host = $site_email_smtp_host ?: 'smtp.gmail.com';
-                    $mail->Username = $site_email_from ?: $site_email ?: $fromAddress;
-                    $mail->Password = $site_email_password ?? '';
+                    // Use the loaded settings
+                    $username = trim($site_email_from ?? '') ?: trim($site_email ?? '') ?: $fromAddress;
+                    $mail->Username = $username;
 
-                    $secureType = $site_email_smtp_secure_type ?: 'tls';
-                    if (!empty($secureType)) {
+                    // Use the loaded settings
+                    $password = trim((string) ($site_email_password ?? ''));
+                    $mail->Password = $password; // This should now be 'glplukrjtkmtrlcx'
+
+                    // Use the loaded settings
+                    $secureType = strtolower(trim($site_email_smtp_secure_type ?? ''));
+                    if ($secureType === 'ssl' || $secureType === 'tls') {
                         $mail->SMTPSecure = $secureType;
+                    } else {
+                        $mail->SMTPSecure = 'tls'; // Default to tls
                     }
 
-                    $port = !empty($site_email_smtp_port) ? (int) $site_email_smtp_port : 587;
-                    $mail->Port = $port > 0 ? $port : 587;
+                    // Use the loaded settings
+                    $port = (int) trim((string) ($site_email_smtp_port ?? ''));
+                    if ($port <= 0) {
+                        // Default port based on secure type
+                        $port = $mail->SMTPSecure === 'ssl' ? 465 : 587;
+                    }
+                    $mail->Port = $port;
 
                     $mail->isHTML(true);
                     $mail->AltBody = 'This email requires an HTML-compatible email client to display correctly.';
@@ -228,7 +326,7 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
                             . '<td style="padding:8px 0;">' . $productName . '<br><span style="color:#6b7280;font-size:12px;">' . $optionsText . '</span></td>'
                             . '<td style="padding:8px 0;text-align:center;">' . $quantity . '</td>'
                             . '<td style="padding:8px 0;text-align:right;">' . $currencySymbol . number_format($unitPrice, 2) . '</td>'
-                            . '<td style="padding:8px 0;text-align:right;">' . $currencySymbol . number_format($lineTotal, 2) . '</td>'
+                            . '<td style="padding:8px 0;text-align:right;">' . $currencySymbol . number_format($lineTotal, 2) . '</td>
                             . '</tr>';
                     }
 
@@ -244,18 +342,18 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
                     if (!empty($order['discount_amount'])) {
                         $summaryRows .= '<tr>'
                             . '<td style="padding:4px 0;">Discount:</td>'
-                            . '<td style="padding:4px 0;text-align:right;">- ' . $currencySymbol . number_format((float) $order['discount_amount'], 2) . '</td>'
+                            . '<td style="padding:4px 0;text-align:right;">- ' . $currencySymbol . number_format((float) $order['discount_amount'], 2) . '</td>
                             . '</tr>';
                     }
 
                     $summaryRows .= '<tr>'
                         . '<td style="padding:4px 0;">Shipping:</td>'
-                        . '<td style="padding:4px 0;text-align:right;">' . $currencySymbol . number_format((float) ($order['shipping_fee'] ?? 0), 2) . '</td>'
+                        . '<td style="padding:4px 0;text-align:right;">' . $currencySymbol . number_format((float) ($order['shipping_fee'] ?? 0), 2) . '</td>
                         . '</tr>';
 
                     $summaryRows .= '<tr>'
                         . '<td style="padding:8px 0;font-weight:bold;">Grand Total:</td>'
-                        . '<td style="padding:8px 0;text-align:right;font-weight:bold;">' . $currencySymbol . number_format((float) ($order['grand_total'] ?? 0), 2) . '</td>'
+                        . '<td style="padding:8px 0;text-align:right;font-weight:bold;">' . $currencySymbol . number_format((float) ($order['grand_total'] ?? 0), 2) . '</td>
                         . '</tr>';
 
                     $invoiceButton = '';
@@ -307,6 +405,7 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
             $invoiceLink = $emailContext['invoice_link'] ?? null;
             $websiteOrigin = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'viennabytnq.com');
 
+            // --- Send Customer Email ---
             if (!empty($orderData['email'])) {
                 $customerMail = initOrderMailer();
                 $customerMail->addAddress($orderData['email'], $shipping['fullName'] ?? '');
@@ -324,12 +423,17 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
                 }
             }
 
+            // --- Send Admin/Client Email ---
+            // $site_email is now loaded from your database
             if (!empty($site_email)) {
                 $clientMail = initOrderMailer();
                 $clientMail->addAddress($site_email, $site_name ?? 'Store Admin');
+                
+                // $site_email_2 is also loaded from your database
                 if (!empty($site_email_2)) {
                     $clientMail->addCC($site_email_2, $site_name ?? 'Store Admin');
                 }
+                
                 $clientMail->Subject = 'New Paid Order - ' . ($orderData['order_number'] ?? '');
                 $clientMail->Body = buildOrderEmailBody(
                     $orderData,
@@ -344,7 +448,7 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
                     error_log('Order email to client failed: ' . $clientMail->ErrorInfo);
                 }
             }
-        }
+        } // End if (!empty($emailContext))
 
         // Redirect to the success page to trigger the notification
         header("Location: /order-success?ref=" . $reference);
@@ -352,8 +456,9 @@ if (isset($result->status) && $result->status == true && isset($result->data->st
 
     } catch (Exception $e) {
         $conn->rollBack();
-        error_log("Payment Verification DB Error: " . $e->getMessage());
-        header("Location: /checkout?error=db_error");
+        // CATCHING AND LOGGING ANY DATABASE OR TRANSACTION ERRORS
+        error_log("Payment Verification DB/Transaction Error: " . $e->getMessage());
+        header("Location: /checkout?error=db_transaction_error");
         exit;
     }
 
