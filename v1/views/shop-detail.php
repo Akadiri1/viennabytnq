@@ -723,8 +723,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const USD_RATE = 1000; // Placeholder value
-    const INITIAL_CURRENCY = 'NGN'; // Placeholder value
+    const USD_RATE = <?= USD_EXCHANGE_RATE ?>;
+    const INITIAL_CURRENCY = '<?= $current_currency ?>';
 
     const updateAllPrices = (targetCurrency) => {
         document.querySelectorAll('.price-display').forEach(el => {

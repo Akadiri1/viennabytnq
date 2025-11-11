@@ -1163,7 +1163,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const payWithPaystack = (email, amountKobo, reference, currency) => {
         let handler = PaystackPop.setup({
-            key: 'pk_live_fba8b7b72069abd06da374ede497cca70ef02621',
+            key: 'pk_test_0de1d66fdfbb9621ccd971336d399deedfb77ace',
             email: email,
             amount: amountKobo, // amount in kobo/cents
             currency: currency,

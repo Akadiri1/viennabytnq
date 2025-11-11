@@ -16,10 +16,9 @@ ob_start();
 session_start();
 // die("Critical Maintenance in progress");
 #Define App Path
+
 define("D_PATH", dirname(dirname(__FILE__)));
 CONST APP_PATH = D_PATH."/v1";
-
-
 #load config
 include D_PATH."/.env/config.php";
 #load database
