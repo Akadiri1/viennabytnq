@@ -67,10 +67,10 @@ if (count($uri) > 2) {
     include APP_PATH."/views/more-about.php";
     break;
 
-       case "shopdetail?".$query_string: 
-      include APP_PATH."/views/shop-detail.php";
-      die();
-      break;
+    case "shopdetail?".$query_string: 
+    include APP_PATH."/views/shop-detail.php";
+    die();
+    break;
 
     case '':
     include APP_PATH."/views/home.php";
