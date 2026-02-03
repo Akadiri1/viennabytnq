@@ -293,7 +293,8 @@ if (isset($result['status']) && $result['status'] === true && isset($result['dat
                         oi.custom_color_name,
                         oi.custom_size_details, 
                         pp.name AS product_name,         -- Fetched from panel_products
-                        pp.image_one AS main_image_url   -- Fetched from panel_products
+                        pp.image_one AS main_image_url,   -- Fetched from panel_products
+                        oi.product_id                    -- Added to facilitate stock update
                     FROM order_items oi
                     JOIN panel_products pp ON oi.product_id = pp.id
                     WHERE oi.order_id = ? 
@@ -325,7 +326,32 @@ if (isset($result['status']) && $result['status'] === true && isset($result['dat
                 $_SESSION['whatsapp_notification_message'] = $whatsappMessage;
                 $_SESSION['last_order_ref'] = $reference;
 
-                echo '<p class="status-warn">Stock decrement and Cart Clear logic are placeholders. They should be implemented here.</p>';
+                // --- STOCK REDUCTION LOGIC ---
+                echo '<p>Updating Stock Quantities...</p>';
+                foreach ($orderItems as $item) {
+                    $pid = $item['product_id'];
+                    $qty = $item['quantity'];
+                    $variantName = $item['size_name']; // variants are stored as size_name
+                    
+                    $updated = false;
+                    
+                    // 1. Try to decrement Variant Stock
+                    if (!empty($variantName)) {
+                        $stmtVar = $conn->prepare("UPDATE product_price_variants SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE product_id = ? AND variant_name = ?");
+                        $stmtVar->execute([$qty, $pid, $variantName]);
+                        if ($stmtVar->rowCount() > 0) {
+                            $updated = true;
+                            echo "<p class='status-ok'>Reduced stock for Variant '{$variantName}' (Product $pid).</p>";
+                        }
+                    }
+                    
+                    // 2. If no variant updated (or no variant name), decrement Main Product Stock
+                    if (!$updated) {
+                        $stmtMain = $conn->prepare("UPDATE panel_products SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE id = ?");
+                        $stmtMain->execute([$qty, $pid]);
+                        echo "<p class='status-ok'>Reduced main stock for Product $pid.</p>";
+                    }
+                }
                 
                 // Final context for email
                 $emailContext = [
@@ -341,6 +367,19 @@ if (isset($result['status']) && $result['status'] === true && isset($result['dat
 
             $conn->commit();
             echo '<p class="status-ok">Database Transaction committed successfully.</p>';
+
+            // --- 4.5 EMPTY CART AFTER SUCCESSFUL PURCHASE ---
+            $cartToken = $_COOKIE['cart_token'] ?? null;
+            if ($cartToken) {
+                try {
+                    $clearCartStmt = $conn->prepare("DELETE FROM cart_items WHERE cart_token = ?");
+                    $clearCartStmt->execute([$cartToken]);
+                    echo '<p class="status-ok">Cart items cleared for token: ' . htmlspecialchars($cartToken) . '</p>';
+                } catch (Exception $e) {
+                    error_log("Failed to clear cart: " . $e->getMessage());
+                    echo '<p class="status-warn">Notice: Could not clear cart items. ' . htmlspecialchars($e->getMessage()) . '</p>';
+                }
+            }
 
         } catch (Exception $e) {
             if ($conn->inTransaction()) {

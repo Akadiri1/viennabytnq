@@ -43,6 +43,8 @@ $videoText = $homeVideo[0]['video_text'];
     <link rel="stylesheet" href="allcss/18.css">
     <link rel="stylesheet" href="allcss/19.css">
     <link rel="stylesheet" href="allcss/20.css">
+    <!-- Vienna Modern Design System -->
+    <link rel="stylesheet" href="allcss/vienna-modern.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <!-- END app block -->
@@ -808,16 +810,25 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 function getLiveUsdToNgnRate() {
-    $apiUrl = 'https://api.exchangerate.host/latest?base=USD&symbols=NGN';
-    $response = @file_get_contents($apiUrl);
-    if ($response) {
-        $data = json_decode($response, true);
-        if (isset($data['rates']['NGN'])) {
-            return floatval($data['rates']['NGN']);
+    // Try multiple free exchange rate APIs
+    $apis = [
+        'https://open.er-api.com/v6/latest/USD',
+        'https://api.exchangerate-api.com/v4/latest/USD'
+    ];
+    
+    foreach ($apis as $apiUrl) {
+        $context = stream_context_create(['http' => ['timeout' => 5]]);
+        $response = @file_get_contents($apiUrl, false, $context);
+        if ($response) {
+            $data = json_decode($response, true);
+            if (isset($data['rates']['NGN'])) {
+                return floatval($data['rates']['NGN']);
+            }
         }
     }
-    // Fallback in case API fails
-    return 1533.04; // Last known rate
+    
+    // Fallback in case all APIs fail - use current market rate (Jan 2025)
+    return 1480; // Current market rate (Jan 2025)
 }
 
 // Define exchange rate constant (only once)
@@ -1091,7 +1102,11 @@ document.addEventListener('DOMContentLoaded', () => {
                   </h1>
                   <!-- <img src="images/vienna.jpg" alt="Overlay Subtitle" class="overlay-subtitle-image fade-in" style="width: 60%"> -->
                 </div>
-              </div>
+                </div>
+                <!-- Scroll Indicator -->
+                <div class="scroll-indicator">
+                  <span>Scroll</span>
+                </div>
               <style>
                 .video-section {
                   position: relative;
@@ -1417,6 +1432,67 @@ foreach ($collections as $collection) {
       </footer>
     </div>
 </body>
+
+<!-- Vienna Modern JS Enhancements -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Header scroll effect - add glassmorphism on scroll
+  const header = document.getElementById('main-site-header');
+  const heroSection = document.querySelector('.video-section');
+  
+  if (header && heroSection) {
+    const heroHeight = heroSection.offsetHeight;
+    
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 100) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
+    });
+  }
+  
+  // Scroll animations for collection items
+  const animatedElements = document.querySelectorAll('.cat_grid_item');
+  
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, index) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => {
+            entry.target.classList.add('is-visible');
+          }, index * 100);
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    });
+    
+    animatedElements.forEach(el => {
+      el.classList.add('animate-on-scroll');
+      observer.observe(el);
+    });
+  } else {
+    // Fallback for older browsers
+    animatedElements.forEach(el => el.classList.add('is-visible'));
+  }
+  
+  // Hide scroll indicator after user scrolls
+  const scrollIndicator = document.querySelector('.scroll-indicator');
+  if (scrollIndicator) {
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 200) {
+        scrollIndicator.style.opacity = '0';
+      } else {
+        scrollIndicator.style.opacity = '1';
+      }
+    });
+  }
+});
+</script>
+
  <style data-shopify="">
               #laber_collection_featured_grid_ztbCVH {
                 padding-top: 20px;

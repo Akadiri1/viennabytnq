@@ -24,21 +24,22 @@ if (count($uri) > 2) {
   }
 
 
-  switch ($uri[1]."/".$uri[2]) {
+  switch ($uri[1]."/".explode("?",$uri[2])[0]) {
     // ...existing code...
     case "website/$uri[2]":
       include APP_PATH."/views/viewWebsite.php";
       die();
       break;
 
-    // Route for shopdetails/{id}/{name}/{hash}
-    case "shopdetail/$uri[2]":
-      include APP_PATH."/views/shop.php";
+    // Route for shopdetail/{product-slug}?id=X
+    case "product/".explode("?",$uri[2])[0]:
+      include APP_PATH."/views/shop-detail.php";
       die();
       break;
 
-    case "shopdetail/$uri[2]":
-      include APP_PATH."/views/shop-detail.php";
+    default:
+      http_response_code(404);
+      include APP_PATH."/views/404.php";
       die();
       break;
   }
@@ -67,7 +68,7 @@ if (count($uri) > 2) {
     include APP_PATH."/views/more-about.php";
     break;
 
-    case "shopdetail?".$query_string: 
+    case "product?".$query_string: 
     include APP_PATH."/views/shop-detail.php";
     die();
     break;
@@ -102,6 +103,11 @@ if (count($uri) > 2) {
 
      case 'currency?'.$query_string:
     include APP_PATH."/views/currency.php";
+    break;
+
+    case 'export-transactions':
+    include APP_PATH."/views/includes/ajax/export_orders.php";
+    die();
     break;
 
     case 'country_states?'.$query_string:
@@ -169,6 +175,10 @@ if (count($uri) > 2) {
 
        case 'dashboard?'.$query_string:
       include APP_PATH."/views/dashboard.php";
+      break;
+
+      case 'invoice?'.$query_string:
+      include APP_PATH."/views/invoice.php";
       break;
 
        case 'dashboard?page=colors':
@@ -402,6 +412,54 @@ if (count($uri) > 2) {
     include APP_PATH."/auth/logout.php";
     break;
 
+    // --- ADMIN MANAGEMENT ROUTES ---
+    // --- ADMIN MANAGEMENT ROUTES ---
+    case "generate-invite":
+    $action = 'generate_invite';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-list-pending":
+    $action = 'list_pending';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-approve":
+    $action = 'approve_admin';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-check-session":
+    $action = 'check_session';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-list-all":
+    $action = 'list_all_admins';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-delete":
+    $action = 'delete_admin';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-suspend":
+    $action = 'suspend_admin';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-reactivate":
+    $action = 'reactivate_admin';
+    include APP_PATH."/views/includes/ajax/admin_api.php";
+    break;
+
+    case "admin-setup":
+    case "admin-setup?".$query_string:
+    include APP_PATH."/views/admin-setup.php";
+    break;
+    // -------------------------------
+
     case 'dashboard':
     include APP_PATH."/views/dashboard.php";
     break;
@@ -483,7 +541,11 @@ if (count($uri) > 2) {
     include APP_PATH."/auth/change_password.php";
     break;
 
- 
+    default:
+        http_response_code(404);
+        include APP_PATH."/views/404.php";
+        die();
+        break;
 
   }
 

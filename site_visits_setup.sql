@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS site_visits;
+
+CREATE TABLE IF NOT EXISTS site_visits (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ip_address VARCHAR(45) NOT NULL,
+    visit_url VARCHAR(255) NOT NULL,
+    referrer VARCHAR(255),
+    user_agent VARCHAR(255),
+    visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

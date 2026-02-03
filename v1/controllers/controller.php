@@ -339,6 +339,92 @@ function compressImage2($files, $name, $quality, $upDIR ) {
   return $img;
 }
 
+/**
+ * Optimized image compression with resizing for web performance
+ * - Resizes large images to max width (default 1200px for main, 400px for thumb)
+ * - Compresses JPEG to web-friendly quality
+ * - Maintains aspect ratio
+ * 
+ * @param array $files - $_FILES array
+ * @param string $name - file input name
+ * @param int $maxWidth - maximum width for main image (default 1200)
+ * @param int $thumbWidth - width for thumbnail (default 400)
+ * @param string $upDIR - upload directory
+ * @return array - paths to uploaded images
+ */
+function compressImageOptimized($files, $name, $upDIR = "uploads/", $maxWidth = 1200, $thumbWidth = 400) {
+  $strip_name = preg_replace("/[^.a-zA-Z0-9]/", "_", $_FILES[$name]['name']);
+  $filename = time() . "_" . rand(10000, 99999) . "_" . $strip_name;
+  
+  // Change extension to jpg for compressed output
+  $filename_base = pathinfo($filename, PATHINFO_FILENAME);
+  $filename_jpg = $filename_base . ".jpg";
+  
+  $destination_url = $upDIR . $filename_jpg;
+  $thumb_url = 'thumbs/' . $filename_jpg;
+  
+  // Ensure directories exist
+  if (!is_dir($upDIR)) mkdir($upDIR, 0755, true);
+  if (!is_dir('thumbs')) mkdir('thumbs', 0755, true);
+  
+  $info = getimagesize($files[$name]['tmp_name']);
+  $originalWidth = $info[0];
+  $originalHeight = $info[1];
+  
+  // Create image from source
+  switch ($info['mime']) {
+    case 'image/jpeg':
+      $image = imagecreatefromjpeg($files[$name]['tmp_name']);
+      break;
+    case 'image/png':
+      $image = imagecreatefrompng($files[$name]['tmp_name']);
+      break;
+    case 'image/gif':
+      $image = imagecreatefromgif($files[$name]['tmp_name']);
+      break;
+    case 'image/webp':
+      $image = imagecreatefromwebp($files[$name]['tmp_name']);
+      break;
+    default:
+      // Fallback: move file without processing
+      move_uploaded_file($files[$name]['tmp_name'], $destination_url);
+      return ['upload' => $destination_url, 'thumb' => $destination_url];
+  }
+  
+  // --- RESIZE MAIN IMAGE ---
+  if ($originalWidth > $maxWidth) {
+    $newWidth = $maxWidth;
+    $newHeight = (int)(($originalHeight / $originalWidth) * $newWidth);
+    $resized = imagecreatetruecolor($newWidth, $newHeight);
+    
+    // Preserve transparency for PNG/GIF
+    imagealphablending($resized, false);
+    imagesavealpha($resized, true);
+    
+    imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
+    imagejpeg($resized, $destination_url, 80); // Quality 80 for good balance
+    imagedestroy($resized);
+  } else {
+    imagejpeg($image, $destination_url, 80);
+  }
+  
+  // --- CREATE THUMBNAIL ---
+  $thumbHeight = (int)(($originalHeight / $originalWidth) * $thumbWidth);
+  $thumb = imagecreatetruecolor($thumbWidth, $thumbHeight);
+  imagealphablending($thumb, false);
+  imagesavealpha($thumb, true);
+  imagecopyresampled($thumb, $image, 0, 0, 0, 0, $thumbWidth, $thumbHeight, $originalWidth, $originalHeight);
+  imagejpeg($thumb, $thumb_url, 60); // Lower quality for thumbnails
+  
+  imagedestroy($image);
+  imagedestroy($thumb);
+  
+  return [
+    'upload' => $destination_url,
+    'thumb' => $thumb_url
+  ];
+}
+
 function selectTableContent2($dbconn,$table,$column,$columnWhere){
   $vall = formatWhere($columnWhere);
   $column = implode(',',$column);

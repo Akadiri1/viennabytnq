@@ -56,21 +56,22 @@ if ($products) {
         
         // --- Card HTML Building with Conditional Logic ---
         // data-price is now the base price
+        $productSlug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $product['name']), '-'));
         $productsHtml .= '<div class="product-card" data-price="'.htmlspecialchars($displayPrice).'">';
         
         $openingTag = $isSoldOut 
             ? '<div class="group block cursor-not-allowed">' 
-            : '<a href="shopdetail?id='.urlencode($product['id']).'" class="group block">';
+            : '<a href="/product/'.urlencode($productSlug).'?id='.urlencode($product['id']).'" class="group block">';
         $closingTag = $isSoldOut ? '</div>' : '</a>';
 
         $productsHtml .= $openingTag;
         
-        // Image container
-        $productsHtml .= '<div class="relative w-full overflow-hidden"><div class="aspect-[9/16]">';
-        $img1_classes = $isSoldOut ? 'opacity-100' : 'opacity-100 group-hover:opacity-0';
+        // Image container with skeleton loader
+        $productsHtml .= '<div class="relative w-full overflow-hidden"><div class="aspect-[9/16] skeleton-container">';
+        $img1_classes = $isSoldOut ? 'opacity-0' : 'opacity-0 group-hover:opacity-0';
         $img2_classes = $isSoldOut ? 'opacity-0' : 'opacity-0 group-hover:opacity-100';
-        $productsHtml .= '<img src="'.htmlspecialchars($product['image_one']).'" alt="'.htmlspecialchars($product['name']).'" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 '.$img1_classes.'">';
-        $productsHtml .= '<img src="'.htmlspecialchars($product['image_two']).'" alt="'.htmlspecialchars($product['name']).' Hover" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 '.$img2_classes.'">';
+        $productsHtml .= '<img data-src="'.htmlspecialchars($product['image_one']).'" alt="'.htmlspecialchars($product['name']).'" class="lazy-img product-main-img absolute inset-0 w-full h-full object-cover transition-opacity duration-300 '.$img1_classes.'">';
+        $productsHtml .= '<img data-src="'.htmlspecialchars($product['image_two']).'" alt="'.htmlspecialchars($product['name']).' Hover" class="lazy-img product-hover-img absolute inset-0 w-full h-full object-cover transition-opacity duration-300 '.$img2_classes.'">';
         $productsHtml .= '</div>';
 
         if ($isSoldOut) {

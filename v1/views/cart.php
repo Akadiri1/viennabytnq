@@ -5,16 +5,25 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 function getLiveUsdToNgnRate() {
-    $apiUrl = 'https://api.exchangerate.host/latest?base=USD&symbols=NGN';
-    $response = @file_get_contents($apiUrl);
-    if ($response) {
-        $data = json_decode($response, true);
-        if (isset($data['rates']['NGN'])) {
-            return floatval($data['rates']['NGN']);
+    // Try multiple free exchange rate APIs
+    $apis = [
+        'https://open.er-api.com/v6/latest/USD',
+        'https://api.exchangerate-api.com/v4/latest/USD'
+    ];
+    
+    foreach ($apis as $apiUrl) {
+        $context = stream_context_create(['http' => ['timeout' => 5]]);
+        $response = @file_get_contents($apiUrl, false, $context);
+        if ($response) {
+            $data = json_decode($response, true);
+            if (isset($data['rates']['NGN'])) {
+                return floatval($data['rates']['NGN']);
+            }
         }
     }
-    // Fallback in case API fails
-    return 1533.04; // Last known rate
+    
+    // Fallback in case all APIs fail - use current market rate (Jan 2025)
+    return 1480; // Current market rate (Jan 2025)
 }
 
 if (!defined('USD_EXCHANGE_RATE')) {
@@ -35,6 +44,18 @@ $thirty_days = time() + (86400 * 30);
 if (!isset($_COOKIE[$cookie_name])) {
     $token = bin2hex(random_bytes(32)); 
     setcookie($cookie_name, $token, ['expires' => $thirty_days, 'path' => '/', 'secure' => isset($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
+    // New user = Empty cart = Redirect
+    header("Location: /shop");
+    exit;
+} else {
+    // Check if the existing token actually has items
+    $token = $_COOKIE[$cookie_name];
+    $stmt = $conn->prepare("SELECT id FROM cart_items WHERE cart_token = ? LIMIT 1");
+    $stmt->execute([$token]);
+    if ($stmt->rowCount() === 0) {
+        header("Location: /shop");
+        exit;
+    }
 }
 
 // Fetch breadcrumb image from DB
@@ -65,11 +86,23 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
 <body class="bg-brand-bg font-sans text-brand-text">
 
 <!-- SIDEBAR MENU -->
-<div id="sidebar" class="fixed inset-0 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out">
+<div id="sidebar" class="fixed inset-0 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out" aria-labelledby="sidebar-title">
     <div id="sidebar-overlay" class="absolute inset-0 bg-black/40"></div>
-    <div class="relative w-80 h-full bg-brand-bg shadow-2xl flex flex-col">
-        <div class="p-6 flex justify-between items-center border-b border-gray-200"><h2 class="text-2xl font-serif font-semibold">Menu</h2><button id="close-sidebar-btn" class="p-2 text-brand-gray hover:text-brand-text"><i data-feather="x" class="h-6 w-6"></i></button></div>
-        <nav class="flex-grow p-6"><ul class="space-y-4"><li><a href="/home" class="flex items-center p-3 text-lg font-medium text-brand-text rounded-md hover:bg-gray-200/60"><i data-feather="home" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Home</span></a></li><li><a href="/shop" class="flex items-center p-3 text-lg font-medium text-brand-text rounded-md hover:bg-gray-200/60"><i data-feather="shopping-bag" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Products</span></a></li></ul></nav>
+    <div class="relative w-80 h-full bg-white shadow-2xl flex flex-col">
+        <div class="p-6 flex justify-between items-center border-b border-gray-200">
+            <h2 id="sidebar-title" class="text-2xl font-serif font-semibold">Menu</h2>
+            <button id="close-sidebar-btn" class="p-2 text-brand-gray hover:text-brand-text"><i data-feather="x" class="h-6 w-6"></i></button>
+        </div>
+        <nav class="flex-grow p-6">
+            <ul class="space-y-4">
+                <li><a href="/home" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="home" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Home</span></a></li>
+                <li><a href="/shop" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="shopping-bag" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Recent Products</span></a></li>
+                <li><a href="/about" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="info" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">About Us</span></a></li>
+                <li><a href="/register" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="user" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Login / Register</span></a></li>
+                <li><a href="/privacy" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="truck" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Shipping Policy</span></a></li>
+            </ul>
+        </nav>
+        <div class="p-6 border-t border-gray-200"><p class="text-xs text-brand-gray text-center">© <?=date('Y')?> <?=$site_name?></p></div>
     </div>
 </div>
 

@@ -37,11 +37,11 @@ if(array_key_exists('submit', $_POST)){
     if(in_array("image_1",$columnsearch)){
 
       if(in_array("thumbnail",$columnsearch)){
-        $img = compressImage2($_FILES,'upload',50,"uploads/");
+        $img = compressImageOptimized($_FILES,'upload',"uploads/");
       $new['image_1'] = $img['upload'];
       $new['thumbnail'] = $img['thumb'];
     }else{
-      $img = compressImage($_FILES,'upload',50,"uploads/");
+      $img = compressImageOptimized($_FILES,'upload',"uploads/");
     $new['image_1'] = $img['upload'];
     }
 

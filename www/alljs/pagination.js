@@ -38,8 +38,64 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- END OF NEW CURRENCY LOGIC ---
 
+    // --- Skeleton Loader HTML Generator ---
+    function generateSkeletonCards(count = 8) {
+        let skeletons = '';
+        for (let i = 0; i < count; i++) {
+            skeletons += `
+                <div class="product-card skeleton-card">
+                    <div class="group block">
+                        <div class="relative w-full overflow-hidden">
+                            <div class="aspect-9-16 skeleton-container">
+                                <!-- Empty skeleton placeholder -->
+                            </div>
+                        </div>
+                        <div class="pt-4 text-center">
+                            <div class="h-4 bg-gray-200 rounded w-3/4 mx-auto mb-2 skeleton-container"></div>
+                            <div class="h-4 bg-gray-200 rounded w-1/2 mx-auto skeleton-container"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        return skeletons;
+    }
+
+    // --- INTERSECTION OBSERVER FOR LAZY LOADING ---
+    const lazyImageObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const img = entry.target;
+                if (img.dataset.src) {
+                    img.src = img.dataset.src;
+                    img.removeAttribute('data-src');
+                    img.onload = function() {
+                        this.classList.remove('opacity-0');
+                        const container = this.closest('.skeleton-container');
+                        if (container) container.classList.add('loaded');
+                    };
+                }
+                observer.unobserve(img);
+            }
+        });
+    }, {
+        rootMargin: '200px 0px',
+        threshold: 0.01
+    });
+
+    function observeLazyImages() {
+        document.querySelectorAll('.lazy-img').forEach(img => {
+            if (img.dataset.src) {
+                lazyImageObserver.observe(img);
+            }
+        });
+    }
+
     // --- Fetch Products via AJAX ---
     function fetchProducts(page = 1, search = '', sort = 'featured') {
+        // Show skeleton loaders immediately
+        productGrid.innerHTML = generateSkeletonCards(8);
+        
         const cacheBuster = Date.now();
         // NOTE: Ensure your API endpoint is located at '/pagination' or the correct path.
         fetch(`pagination?page=${page}&search=${encodeURIComponent(search)}&sort=${encodeURIComponent(sort)}&cb=${cacheBuster}`)
@@ -51,6 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(data => {
             productGrid.innerHTML = data.productsHtml;
+            
+            // Observe lazy images in newly loaded content
+            observeLazyImages();
             
             // --- THE FIX: Re-apply currency conversion after loading new products ---
             const currentActiveCurrency = document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN';

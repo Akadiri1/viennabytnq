@@ -21,8 +21,8 @@ if (!$singleProduct) {
 }
 $singleProduct = $singleProduct[0];
 
-// Fetch price variants
-$priceVariantsStmt = $conn->prepare("SELECT id, variant_name, price FROM product_price_variants WHERE product_id = ? ORDER BY price ASC");
+// Fetch price variants (including stock)
+$priceVariantsStmt = $conn->prepare("SELECT id, variant_name, price, stock_quantity FROM product_price_variants WHERE product_id = ? ORDER BY price ASC");
 $priceVariantsStmt->execute([$id]);
 $priceVariants = $priceVariantsStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -43,7 +43,8 @@ if (!empty($priceVariants)) {
             'type' => 'variant',
             'id' => $variant['id'],
             'name' => $variant['variant_name'],
-            'price_modifier' => $variant['price'] - $singleProduct['price'] // Store price difference
+            'price_modifier' => $variant['price'] - $singleProduct['price'], // Store price difference
+            'stock' => $variant['stock_quantity'] // Add stock quantity
         ];
     }
 } elseif (!empty($availableSizes)) {
@@ -88,16 +89,25 @@ if (count($relatedProducts) < 4) {
 
 function getLiveUsdToNgnRate()
 {
-    $apiUrl = 'https://api.exchangerate.host/latest?base=USD&symbols=NGN';
-    $response = @file_get_contents($apiUrl);
-    if ($response) {
-        $data = json_decode($response, true);
-        if (isset($data['rates']['NGN'])) {
-            return floatval($data['rates']['NGN']);
+    // Try multiple free exchange rate APIs
+    $apis = [
+        'https://open.er-api.com/v6/latest/USD',
+        'https://api.exchangerate-api.com/v4/latest/USD'
+    ];
+    
+    foreach ($apis as $apiUrl) {
+        $context = stream_context_create(['http' => ['timeout' => 5]]);
+        $response = @file_get_contents($apiUrl, false, $context);
+        if ($response) {
+            $data = json_decode($response, true);
+            if (isset($data['rates']['NGN'])) {
+                return floatval($data['rates']['NGN']);
+            }
         }
     }
-    // Fallback in case API fails
-    return 1533.04; // Last known rate
+    
+    // Fallback in case all APIs fail - use current market rate (Jan 2025)
+    return 1480; // Current market rate (Jan 2025)
 }
 
 // Define exchange rate constant (only once)
@@ -187,14 +197,39 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
         .currency-switcher a { color: #6B7280; font-weight: 500; transition: color 0.2s ease-in-out; }
         .currency-switcher a:hover { color: #1A1A1A; }
         .currency-switcher a.active { color: #1A1A1A; font-weight: 700; text-decoration: underline; }
+        
+        /* Skeleton loader styles */
+        .skeleton-container {
+            background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+            background-size: 200% 100%;
+            animation: skeleton-shimmer 1.5s infinite ease-in-out;
+        }
+        @keyframes skeleton-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton-container.loaded {
+            background: none;
+            animation: none;
+        }
+        .skeleton-img {
+            transition: opacity 0.4s ease-in-out;
+        }
     </style>
+    <script>
+        function handleImageLoad(imgElement) {
+            imgElement.classList.remove('opacity-0');
+            const container = imgElement.closest('.skeleton-container');
+            if (container) container.classList.add('loaded');
+        }
+    </script>
 </head>
 <body class="bg-brand-bg font-sans text-brand-text">
 
     <!-- SIDEBAR MENU - MODIFIED -->
     <div id="sidebar" class="fixed inset-0 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out" aria-labelledby="sidebar-title">
         <div id="sidebar-overlay" class="absolute inset-0 bg-black/40"></div>
-        <div class="relative w-80 h-full bg-brand-bg shadow-2xl flex flex-col">
+        <div class="relative w-80 h-full bg-white shadow-2xl flex flex-col">
             <div class="p-6 flex justify-between items-center border-b border-gray-200">
                 <h2 id="sidebar-title" class="text-2xl font-serif font-semibold">Menu</h2>
                 <button id="close-sidebar-btn" class="p-2 text-brand-gray hover:text-brand-text"><i data-feather="x" class="h-6 w-6"></i></button>
@@ -224,10 +259,20 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
     <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 xl:gap-x-16 gap-y-10">
             <div class="flex flex-col md:flex-row-reverse gap-4">
-                <div class="flex-1"><img id="main-product-image" src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="w-full h-auto object-cover aspect-[4/5] rounded-lg"/></div>
+                <div class="flex-1">
+                    <div class="skeleton-container rounded-lg aspect-[4/5]">
+                        <img id="main-product-image" src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="skeleton-img w-full h-full object-cover rounded-lg opacity-0" loading="eager" decoding="async" onload="handleImageLoad(this)"/>
+                    </div>
+                </div>
                 <div id="thumbnail-gallery" class="flex flex-row md:flex-col gap-3 overflow-x-auto md:overflow-y-auto md:max-h-[580px] scrollbar-thin pb-2 md:pb-0">
-                    <img src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="thumbnail-img active-thumbnail w-20 h-28 object-cover cursor-pointer flex-shrink-0 rounded-md"/>
-                    <?php foreach ($productImages as $image): ?><img src="/<?= htmlspecialchars($image['image_path']) ?>" alt="<?= htmlspecialchars($image['alt_text'] ?? $singleProduct['name']) ?>" class="thumbnail-img w-20 h-28 object-cover cursor-pointer flex-shrink-0 rounded-md"/><?php endforeach; ?>
+                    <div class="skeleton-container rounded-md w-20 h-28 flex-shrink-0">
+                        <img src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="thumbnail-img skeleton-img active-thumbnail w-20 h-28 object-cover cursor-pointer flex-shrink-0 rounded-md opacity-0" loading="lazy" decoding="async" onload="handleImageLoad(this)"/>
+                    </div>
+                    <?php foreach ($productImages as $image): ?>
+                    <div class="skeleton-container rounded-md w-20 h-28 flex-shrink-0">
+                        <img src="/<?= htmlspecialchars($image['image_path']) ?>" alt="<?= htmlspecialchars($image['alt_text'] ?? $singleProduct['name']) ?>" class="thumbnail-img skeleton-img w-20 h-28 object-cover cursor-pointer flex-shrink-0 rounded-md opacity-0" loading="lazy" decoding="async" onload="handleImageLoad(this)"/>
+                    </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
 
@@ -238,6 +283,13 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                         data-base-price="<?= $singleProduct['price'] ?>"
                         data-price-ngn="<?= $displayPrice ?>">
                         ₦<?= number_format($displayPrice, 2) ?>
+                    </p>
+                    <p id="stock-display" class="text-sm font-medium mb-5">
+                        <?php if (empty($priceVariants)): ?>
+                            <?= $singleProduct['stock_quantity'] > 0 ? '<span class="text-emerald-600">In Stock (' . $singleProduct['stock_quantity'] . ' available)</span>' : '<span class="text-brand-red">Out of Stock</span>' ?>
+                        <?php else: ?>
+                            <span class="text-brand-gray">Select an option to view stock</span>
+                        <?php endif; ?>
                     </p>
                     <div class="text-gray-600 leading-relaxed text-base prose"><?= nl2br(htmlspecialchars($singleProduct['product_text'])) ?></div>
                 </div>
@@ -276,7 +328,7 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                 <div>
                     <!-- Option/Size Selection (Modified to be visible by default) -->
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="text-sm font-semibold">OPTION/SIZE <span class="<?= (!empty($productOptions)) ? 'text-brand-red font-semibold' : 'text-brand-gray font-normal' ?>"><?= (!empty($productOptions)) ? '(Required)' : '(Optional)' ?></span></h3>
+                        <h3 class="text-sm font-semibold">VARIANT <span class="<?= (!empty($productOptions)) ? 'text-brand-red font-semibold' : 'text-brand-gray font-normal' ?>"><?= (!empty($productOptions)) ? '(Required)' : '(Optional)' ?></span></h3>
                         <?php if(!empty($productOptions)): // Show if any standard options exist ?>
                         <button id="open-size-chart-btn" class="text-sm font-medium text-brand-gray hover:text-brand-text underline">Size Guide</button>
                         <?php endif; ?>
@@ -286,13 +338,14 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                         <!-- Select Wrapper (ALWAYS VISIBLE - removed 'hidden' class) -->
                         <div id="product-option-select-wrapper" class="relative mt-4">
                             <select id="product-option-select" class="form-select-sleek pr-8">
-                                <option value="" data-type="" data-id="" data-price-modifier="0" selected>-- Select a size --</option>
+                                <option value="" data-type="" data-id="" data-price-modifier="0" selected>-- Select a Variant --</option>
                                 <?php foreach ($productOptions as $index => $option): ?>
                                     <option
                                         value="<?= htmlspecialchars($option['type'] . '-' . $option['id']) ?>"
                                         data-type="<?= htmlspecialchars($option['type']) ?>"
                                         data-id="<?= htmlspecialchars($option['id']) ?>"
                                         data-price-modifier="<?= htmlspecialchars($option['price_modifier']) ?>"
+                                        data-stock="<?= htmlspecialchars($option['stock'] ?? '') ?>"
                                     >
                                         <?= htmlspecialchars($option['name']) ?>
                                     </option>
@@ -353,9 +406,15 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                         $relatedVariants = $relatedVariantStmt->fetchAll(PDO::FETCH_COLUMN);
                     }
                 ?>
+                <?php $relatedSlug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $relatedProduct['name']), '-')); ?>
                 <div class="product-card">
-                    <a href="shopdetail?id=<?= urlencode($relatedProduct['id']) ?>" class="group block">
-                        <div class="relative w-full overflow-hidden"><div class="aspect-[9/16]"><img src="/<?= htmlspecialchars($relatedProduct['image_one']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?>" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100 group-hover:opacity-0"><img src="/<?= htmlspecialchars($relatedProduct['image_two']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?> Hover" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-100"></div></div>
+                    <a href="/product/<?= urlencode($relatedSlug) ?>?id=<?= urlencode($relatedProduct['id']) ?>" class="group block">
+                        <div class="relative w-full overflow-hidden">
+                            <div class="aspect-[9/16] skeleton-container">
+                                <img src="/<?= htmlspecialchars($relatedProduct['image_one']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?>" class="skeleton-img absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-0" loading="lazy" decoding="async" onload="handleImageLoad(this)">
+                                <img src="/<?= htmlspecialchars($relatedProduct['image_two']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?> Hover" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-100" loading="lazy" decoding="async">
+                            </div>
+                        </div>
                         <div class="pt-4 text-center">
                             <h3 class="text-base font-medium text-brand-text"><?= htmlspecialchars($relatedProduct['name']) ?></h3>
                             <p class="price-display mt-1 text-sm text-brand-gray" data-price-ngn="<?= !empty($relatedVariants) ? $relatedVariants[0] : $relatedProduct['price'] ?>">
@@ -828,6 +887,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
             selectors.productPriceEl.dataset.priceNgn = newDisplayPrice;
             updateAllPrices(document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN');
+
+            // Stock Display Logic & Button State
+            const stockDisplay = document.getElementById('stock-display');
+            let isOutOfStock = false;
+
+            if (stockDisplay) {
+                if (selectedOption.value !== "") {
+                    const stock = selectedOption.dataset.stock;
+                    if (stock !== "" && stock !== undefined && stock !== "null") {
+                        if (parseInt(stock) > 0) {
+                            stockDisplay.innerHTML = `<span class="text-emerald-600">In Stock (${stock} available)</span>`;
+                            isOutOfStock = false;
+                        } else {
+                            stockDisplay.innerHTML = `<span class="text-brand-red">Out of Stock</span>`;
+                            isOutOfStock = true;
+                        }
+                    } else {
+                         // Fallback for standard sizes or if stock not set (assume in stock)
+                         stockDisplay.innerHTML = `<span class="text-emerald-600">In Stock</span>`;
+                         isOutOfStock = false;
+                    }
+                } else {
+                    stockDisplay.innerHTML = `<span class="text-brand-gray">Select an option to view stock</span>`;
+                    isOutOfStock = false; // logic: keep enabled or depend on validation
+                }
+            }
+            
+            // Update Button State
+            if (selectors.addToCartBtn) {
+                if (isOutOfStock) {
+                    selectors.addToCartBtn.disabled = true;
+                    selectors.addToCartBtn.innerHTML = `<span>Out of Stock</span>`;
+                    selectors.addToCartBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                    selectors.addToCartBtn.disabled = false;
+                    selectors.addToCartBtn.innerHTML = `<i data-feather="shopping-cart" class="w-5 h-5"></i><span>ADD TO CART</span>`;
+                    selectors.addToCartBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if (typeof feather !== 'undefined') feather.replace();
+                }
+            }
 
             if (selectedOption.value !== "") {
                 document.querySelectorAll("#custom-measurements-form input").forEach(input => input.value = '');

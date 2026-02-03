@@ -23,6 +23,58 @@ CONST APP_PATH = D_PATH."/v1";
 include D_PATH."/.env/config.php";
 #load database
 require APP_PATH."/models/model.php";
+
+// --- VISITOR TRACKING ---
+// Track visits if not an admin and not an AJAX request (optional refinement)
+if (!isset($_SESSION['admin_logged_in'])) {
+    try {
+        $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+        $visit_url = $_SERVER['REQUEST_URI'];
+        $referrer = $_SERVER['HTTP_REFERER'] ?? '';
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        
+        // Simple optimization: Don't track static assets if they accidentally route here
+        if (!preg_match('/\.(jpg|jpeg|png|gif|css|js|ico|svg|woff|woff2)$/i', $visit_url)) {
+            
+            // Geolocation Logic (Reuse existing IP data to save API calls)
+            $country = null;
+            $region = null;
+            
+            try {
+                // Check if we already know this IP's location
+                $stmtLoc = $conn->prepare("SELECT country, region FROM site_visits WHERE ip_address = ? AND country IS NOT NULL LIMIT 1");
+                $stmtLoc->execute([$ip_address]);
+                $existing = $stmtLoc->fetch(PDO::FETCH_ASSOC);
+
+                if ($existing) {
+                    $country = $existing['country'];
+                    $region = $existing['region'];
+                } else {
+                    // Fetch new (with timeout to prevent hanging)
+                    if ($ip_address === '127.0.0.1' || $ip_address === '::1') {
+                         $country = 'Localhost';
+                         $region = 'Private Network';
+                    } else {
+                        $ctx = stream_context_create(['http' => ['timeout' => 2]]); 
+                        $json = @file_get_contents("http://ip-api.com/json/{$ip_address}", false, $ctx);
+                        if ($json) {
+                            $data = json_decode($json, true);
+                            if (($data['status'] ?? '') === 'success') {
+                                $country = $data['country'] ?? null;
+                                $region = $data['regionName'] ?? null;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception $e) { /* Ignore Geo errors */ }
+
+            $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region]);
+        }
+    } catch (Exception $e) {
+        // Silently fail to avoid disrupting the user experience
+    }
+}
 #load Controllers(functions)
 require APP_PATH."/controllers/controller.php";
 

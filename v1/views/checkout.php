@@ -12,17 +12,25 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 function getLiveUsdToNgnRate() {
-    // This is used as the base rate since your cart prices are in NGN
-    $apiUrl = 'https://api.exchangerate.host/latest?base=USD&symbols=NGN';
-    $response = @file_get_contents($apiUrl);
-    if ($response) {
-        $data = json_decode($response, true);
-        if (isset($data['rates']['NGN'])) {
-            return floatval($data['rates']['NGN']);
+    // Try multiple free exchange rate APIs
+    $apis = [
+        'https://open.er-api.com/v6/latest/USD',
+        'https://api.exchangerate-api.com/v4/latest/USD'
+    ];
+    
+    foreach ($apis as $apiUrl) {
+        $context = stream_context_create(['http' => ['timeout' => 5]]);
+        $response = @file_get_contents($apiUrl, false, $context);
+        if ($response) {
+            $data = json_decode($response, true);
+            if (isset($data['rates']['NGN'])) {
+                return floatval($data['rates']['NGN']);
+            }
         }
     }
-    // Fallback in case API fails
-    return 1533.04; // Use a reasonable fallback rate
+    
+    // Fallback in case all APIs fail - use current market rate (Jan 2025)
+    return 1480; // Current market rate (Jan 2025)
 }
 
 // Define exchange rate constant (only once)
@@ -148,35 +156,12 @@ if (!isset($_COOKIE[$cookie_name])) {
 $cartToken = $_COOKIE[$cookie_name] ?? 'MOCK_TOKEN';
 
 // --- MOCK DATABASE SETUP (Ensure this is replaced with your actual DB connection) ---
+// --- DATABASE CHECK ---
+// Ensure we are using the real connection provided by index.php
 if (!isset($conn)) {
-    class MockPDO {
-        public function prepare($sql) { return $this; }
-        public function execute($params = []) { return $this; }
-        public function fetchAll($mode = null) {
-            // Mock cart items
-            if (strpos($sql, 'cart_items') !== false) {
-                return [
-                    ['total_price' => 50000.00, 'quantity' => 1, 'product_name' => 'Dress A', 'product_image' => 'images/item1.jpg', 'color_name' => 'Red', 'custom_color_name' => '', 'size_name' => 'M', 'custom_size_details' => '{}'],
-                    ['total_price' => 75000.00, 'quantity' => 2, 'product_name' => 'Shoes B', 'product_image' => 'images/item2.jpg', 'color_name' => 'Black', 'custom_color_name' => '', 'size_name' => '40', 'custom_size_details' => '{}'],
-                ];
-            }
-            return [];
-        }
-    }
-    $conn = new MockPDO();
-    function selectContent($conn, $table, $conditions = []) {
-        // Mock shipping locations
-        if ($table === 'shipping_fees') {
-            return [
-                ['id' => 1, 'location_name' => 'Lagos', 'fee' => 3500.00, 'is_active' => TRUE],
-                ['id' => 2, 'location_name' => 'Abuja', 'fee' => 5000.00, 'is_active' => TRUE]
-            ];
-        }
-        return [];
-    }
+    // Should not happen if accessed via router, but safety fallback logic could go here if needed.
+    // For now, we assume $conn exists.
 }
-// --- END MOCK DATABASE SETUP ---
-
 
 $cartSql = "
     SELECT 
@@ -196,9 +181,8 @@ $cartStmt->execute([$cartToken]);
 $cartItems = $cartStmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (empty($cartItems)) {
-    // This check is bypassed in mock setup but crucial in production
-    // header("Location: /view-cart"); 
-    // exit;
+    header("Location: /shop"); 
+    exit;
 }
 
 $subtotal = array_sum(array_column($cartItems, 'total_price'));

@@ -7,23 +7,45 @@ error_reporting(E_ALL);
 // --- 2. MAIN LOGIC WITH ERROR HANDLING ---
 try {
     // Validate the input collection ID
-    if (!isset($_GET['id']) || !filter_var($_GET['id'], FILTER_VALIDATE_INT)) {
-        http_response_code(400); // Bad Request
-        echo json_encode(['error' => 'Invalid or missing collection ID.']);
+    $collectionId = $_GET['id'] ?? null;
+    if (!$collectionId) {
+        http_response_code(400); 
+        echo json_encode(['error' => 'Missing collection ID.']);
         exit;
     }
-    $collectionId = (int)$_GET['id'];
-    $limit = 50;
+    
+    // Pagination Params
+    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 6;
+    $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+    
+    // Filter Params
+    $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+    $sort = isset($_GET['sort']) ? $_GET['sort'] : 'featured';
 
-    // --- 3. EFFICIENT DATA FETCHING ---
+    // Build Query
+    $where = "WHERE LOWER(visibility) = 'show'";
+    $params = [];
+    
+    if ($collectionId !== 'all' && filter_var($collectionId, FILTER_VALIDATE_INT)) {
+        $where .= " AND collection_id = ?";
+        $params[] = (int)$collectionId;
+    }
+    
+    if ($search !== '') {
+        $where .= " AND name LIKE ?";
+        $params[] = "%$search%";
+    }
+
+    $order = "ORDER BY id DESC";
+    if ($sort === 'price-asc') $order = "ORDER BY price ASC";
+    if ($sort === 'price-desc') $order = "ORDER BY price DESC";
 
     // === QUERY 1: Get initial list of products ===
-    $products = selectContent(
-        $conn, 
-        "panel_products", 
-        ['visibility' => 'show', 'collection_id' => $collectionId], 
-        "ORDER BY id DESC LIMIT {$limit}"
-    );
+    // Use raw query for flexibility with search/sort
+    $sql = "SELECT * FROM panel_products $where $order LIMIT $limit OFFSET $offset";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute($params);
+    $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // If no products are found, return an empty array immediately. This is valid JSON.
     if (empty($products)) {
@@ -63,7 +85,7 @@ try {
     }
     
     // === QUERY 4: Fetch all variants for ALL products in ONE query ===
-    $variantSql = "SELECT product_id, variant_name, price FROM product_price_variants WHERE product_id IN ($placeholders) ORDER BY price ASC";
+    $variantSql = "SELECT product_id, variant_name, price, stock_quantity FROM product_price_variants WHERE product_id IN ($placeholders) ORDER BY price ASC";
     $variantStmt = $conn->prepare($variantSql);
     $variantStmt->execute($productIds);
     $variantResults = $variantStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -82,6 +104,17 @@ try {
         // Determine the display price (lowest variant or base price)
         $displayPrice = !empty($variants) ? $variants[0]['price'] : $product['price'];
 
+        // Determine effective stock
+        // If variants exist, stock is the sum of all variant stocks. Otherwise, use main product stock.
+        if (!empty($variants)) {
+            $effectiveStock = 0;
+            foreach ($variants as $v) {
+                $effectiveStock += (int)$v['stock_quantity'];
+            }
+        } else {
+            $effectiveStock = (int)$product['stock_quantity'];
+        }
+
         // Build the final structure for this one product
         $response_data[] = [
             'id' => $productId,
@@ -89,7 +122,7 @@ try {
             'image_one' => $product['image_one'],
             'image_two' => $product['image_two'],
             'price' => $product['price'],
-            'stock_quantity' => $product['stock_quantity'],
+            'stock_quantity' => $effectiveStock, // Use calculated stock
             'colors' => $allColors[$productId] ?? [], // Use pre-fetched data
             'sizes' => $allSizes[$productId] ?? [], // Use pre-fetched data
             'price_variants' => $variants, // Use pre-fetched data
