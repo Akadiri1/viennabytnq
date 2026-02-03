@@ -183,6 +183,9 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <style>
         .thumbnail-img { border: 2px solid transparent; transition: border-color 0.2s ease-in-out; } .active-thumbnail { border-color: #1a1a1a; } .color-swatch { width: 1.75rem; height: 1.75rem; border-radius: 9999px; cursor: pointer; border: 1px solid #d1d5db; transition: all 0.2s ease-in-out; } .active-color { transform: scale(1.1); box-shadow: 0 0 0 3px #1a1a1a; border-color: #1a1a1a; } .size-btn { padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; font-weight: 500; cursor: pointer; transition: all 0.2s; font-size: 0.875rem; min-width: 40px; text-align: center; } .size-btn:hover { border-color: #1a1a1a; } .active-size { background-color: #1a1a1a; color: white; border-color: #1a1a1a; }
+        /* OUT OF STOCK STYLING */
+        a.cursor-not-allowed .aspect-\[9\/16\] { filter: grayscale(100%) blur(1.5px); opacity: 0.9; transition: all 0.3s ease; }
+        a.cursor-not-allowed:hover .aspect-\[9\/16\] { opacity: 1; }
         .price-variant-label { display: flex; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; cursor: pointer; transition: all 0.2s; border-radius: 0.25rem; } .price-variant-label:hover { border-color: #1a1a1a; } input[type="radio"]:checked + .price-variant-label { background-color: #1a1a1a; color: white; border-color: #1a1a1a; }
         .form-input-sleek, .form-select-sleek { background-color: transparent; border: 0; border-bottom: 1px solid #d1d5db; border-radius: 0; padding: 0.5rem 0.1rem; width: 100%; transition: border-color 0.2s ease-in-out; } .form-input-sleek:focus, .form-select-sleek:focus { outline: none; box-shadow: none; ring: 0; border-bottom-color: #1a1a1a; }
         .modal-container { display: flex; align-items: center; justify-content: center; position: fixed; inset: 0; z-index: 100; transition: opacity 0.3s ease-in-out; opacity: 1; pointer-events: auto; } .modal-container.hidden { opacity: 0; pointer-events: none; } .modal-overlay { position: absolute; inset: 0; background-color: rgba(0, 0, 0, 0.4); } .modal-panel { position: relative; width: 95%; max-w: 500px; background-color: #f9f6f2; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform: scale(1); opacity: 1; } .modal-container.hidden .modal-panel { transform: scale(0.95); opacity: 0; } .modal-content-scrollable { max-height: 60vh; overflow-y: auto; } .modal-form-scrollable { max-height: 60vh; overflow-y: auto; padding-right: 0.75rem; }
@@ -397,28 +400,49 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12">
             <?php foreach ($relatedProducts as $relatedProduct): ?>
                 <?php
-                    // Mock data for related products if needed
+                    // Fetch Text-Only Variant Prices for Display
+                    // AND Stock for Validation
+                    $relatedVariantsData = [];
                     if(isset($conn) && get_class($conn) === 'MockPDO') {
-                        $relatedVariants = [32000, 35000]; // Example
+                        $relatedVariantsData = [['price' => 32000, 'stock_quantity' => 10], ['price' => 35000, 'stock_quantity' => 5]]; 
                     } else {
-                        $relatedVariantStmt = $conn->prepare("SELECT price FROM product_price_variants WHERE product_id = ? ORDER BY price ASC");
+                        $relatedVariantStmt = $conn->prepare("SELECT price, stock_quantity FROM product_price_variants WHERE product_id = ? ORDER BY price ASC");
                         $relatedVariantStmt->execute([$relatedProduct['id']]);
-                        $relatedVariants = $relatedVariantStmt->fetchAll(PDO::FETCH_COLUMN);
+                        $relatedVariantsData = $relatedVariantStmt->fetchAll(PDO::FETCH_ASSOC);
+                    }
+                    
+                    // Determine Price Range
+                    $relatedPrices = array_column($relatedVariantsData, 'price');
+                    
+                    // Determine Stock Status
+                    if (!empty($relatedVariantsData)) {
+                        $totalStock = array_sum(array_column($relatedVariantsData, 'stock_quantity'));
+                        $isRelatedSoldOut = $totalStock <= 0;
+                    } else {
+                        $isRelatedSoldOut = ($relatedProduct['stock_quantity'] ?? 0) <= 0;
                     }
                 ?>
                 <?php $relatedSlug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $relatedProduct['name']), '-')); ?>
                 <div class="product-card">
-                    <a href="/product/<?= urlencode($relatedSlug) ?>?id=<?= urlencode($relatedProduct['id']) ?>" class="group block">
+                    <a <?php if (!$isRelatedSoldOut): ?>href="/product/<?= urlencode($relatedSlug) ?>?id=<?= urlencode($relatedProduct['id']) ?>"<?php endif; ?> class="group block <?= $isRelatedSoldOut ? 'cursor-not-allowed' : '' ?>">
                         <div class="relative w-full overflow-hidden">
                             <div class="aspect-[9/16] skeleton-container">
-                                <img src="/<?= htmlspecialchars($relatedProduct['image_one']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?>" class="skeleton-img absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-0" loading="lazy" decoding="async" onload="handleImageLoad(this)">
-                                <img src="/<?= htmlspecialchars($relatedProduct['image_two']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?> Hover" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-100" loading="lazy" decoding="async">
+                                <img src="/<?= htmlspecialchars($relatedProduct['image_one']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?>" class="skeleton-img absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 <?= $isRelatedSoldOut ? '' : 'group-hover:opacity-0' ?>" loading="lazy" decoding="async" onload="handleImageLoad(this)">
+                                <img src="/<?= htmlspecialchars($relatedProduct['image_two']) ?>" alt="<?= htmlspecialchars($relatedProduct['name']) ?> Hover" class="skeleton-img absolute inset-0 w-full h-full object-cover transition-opacity duration-300 <?= $isRelatedSoldOut ? 'opacity-0' : 'opacity-0 group-hover:opacity-100' ?>" loading="lazy" decoding="async">
                             </div>
+                            
+                            <?php if ($isRelatedSoldOut): ?>
+                                <div class="absolute inset-0 z-10 flex items-center justify-center">
+                                    <span class="bg-[#1a1a1a] text-white text-xs font-bold uppercase tracking-[0.2em] px-6 py-3 shadow-xl">
+                                        Sold Out
+                                    </span>
+                                </div>
+                            <?php endif; ?>
                         </div>
                         <div class="pt-4 text-center">
                             <h3 class="text-base font-medium text-brand-text"><?= htmlspecialchars($relatedProduct['name']) ?></h3>
-                            <p class="price-display mt-1 text-sm text-brand-gray" data-price-ngn="<?= !empty($relatedVariants) ? $relatedVariants[0] : $relatedProduct['price'] ?>">
-                                <?php if (count($relatedVariants) > 1): ?>From ₦<?= number_format($relatedVariants[0], 2) ?><?php else: ?>₦<?= number_format(!empty($relatedVariants) ? $relatedVariants[0] : $relatedProduct['price'], 2) ?><?php endif; ?>
+                            <p class="price-display mt-1 text-sm text-brand-gray" data-price-ngn="<?= !empty($relatedPrices) ? $relatedPrices[0] : $relatedProduct['price'] ?>">
+                                <?php if (count($relatedPrices) > 1): ?>From ₦<?= number_format($relatedPrices[0], 2) ?><?php else: ?>₦<?= number_format(!empty($relatedPrices) ? $relatedPrices[0] : $relatedProduct['price'], 2) ?><?php endif; ?>
                             </p>
                         </div>
                     </a>

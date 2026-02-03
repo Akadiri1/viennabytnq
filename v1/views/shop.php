@@ -124,14 +124,14 @@ $collections = selectContent($conn, "collections", [], "ORDER BY name ASC");
         }
 
         /* OUT OF STOCK STYLING */
-        /* Grayscale effect for sold out items */
+        /* Grayscale + Blur effect for sold out items */
         a.cursor-not-allowed .aspect-9-16 {
-            filter: grayscale(100%);
-            opacity: 0.8;
+            filter: grayscale(100%) blur(1.5px);
+            opacity: 0.9;
             transition: all 0.3s ease;
         }
         a.cursor-not-allowed:hover .aspect-9-16 {
-            opacity: 1; /* Slight highlight on hover even if sold out */
+            opacity: 1; 
         }
     </style>
 </head>
@@ -245,8 +245,7 @@ $collections = selectContent($conn, "collections", [], "ORDER BY name ASC");
                                 
                                 <?php if ($isSoldOut): ?>
                                     <div class="absolute inset-0 z-10 flex items-center justify-center">
-                                        <div class="absolute inset-0 bg-white/40 backdrop-blur-[1px]"></div>
-                                        <span class="relative bg-brand-text text-white text-[10px] font-bold uppercase tracking-[0.2em] px-4 py-3 border border-brand-text">
+                                        <span class="bg-[#1a1a1a] text-white text-xs font-bold uppercase tracking-[0.2em] px-6 py-3 shadow-xl">
                                             Sold Out
                                         </span>
                                     </div>
@@ -473,8 +472,7 @@ $collections = selectContent($conn, "collections", [], "ORDER BY name ASC");
                             </div>
                             ${isSoldOut ? `
                                 <div class="absolute inset-0 z-10 flex items-center justify-center">
-                                    <div class="absolute inset-0 bg-white/40 backdrop-blur-[1px]"></div>
-                                    <span class="relative bg-brand-text text-white text-[10px] font-bold uppercase tracking-[0.2em] px-4 py-3 border border-brand-text">
+                                    <span class="bg-[#1a1a1a] text-white text-xs font-bold uppercase tracking-[0.2em] px-6 py-3 shadow-xl">
                                         Sold Out
                                     </span>
                                 </div>
