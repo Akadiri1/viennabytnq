@@ -64,19 +64,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         if (empty($email) || empty($password)) {
             $toast_message = "Please enter both email and password.";
         } else {
-            $stmt = $conn->prepare("SELECT id, full_name, password_hash FROM users WHERE email = ?");
+            $stmt = $conn->prepare("SELECT id, full_name, password_hash, role, status FROM users WHERE email = ?");
             $stmt->execute([$email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password_hash'])) {
-                // Password is correct, start the session
-                session_regenerate_id(true); // Security measure
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_name'] = $user['full_name'];
-                
-                // Redirect to the dashboard
-                header("Location: /user-dashboard");
-                exit();
+                // Check if user is suspended
+                if (($user['status'] ?? 'active') === 'suspended') {
+                    $toast_message = "Your account has been suspended. Please contact support.";
+                    $toast_type = 'error';
+                } else {
+                    // Password is correct, start the session
+                    session_regenerate_id(true); // Security measure
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['user_name'] = $user['full_name'];
+                    $_SESSION['role'] = $user['role'] ?? 'user';
+                    
+                    // Redirect based on role
+                    if ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'super_admin') {
+                        header("Location: /dashboard"); 
+                    } else {
+                        header("Location: /user-dashboard");
+                    }
+                    exit();
+                }
             } else {
                 $toast_message = "Invalid email or password.";
             }

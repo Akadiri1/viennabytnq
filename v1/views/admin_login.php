@@ -55,6 +55,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'Incorrect credentials';
     }
 }
+
+// Handle suspension redirect message
+if (isset($_GET['error']) && $_GET['error'] === 'suspended') {
+    $error_message = "Your account has been suspended. Please contact the main administrator.";
+}
 ?>
 
 <!DOCTYPE html>

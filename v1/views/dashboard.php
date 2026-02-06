@@ -7,10 +7,35 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 // Admin authentication
-if (!isset($_SESSION['admin_logged_in'])) {
+$isLegacyAdmin = isset($_SESSION['admin_logged_in']);
+$isRoleAdmin = isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'super_admin']);
+
+if (!$isLegacyAdmin && !$isRoleAdmin) {
     header('Location: /admin_login');
     exit();
 }
+
+// Normalize Identity
+$currentUserId = $_SESSION['user_id'] ?? $_SESSION['admin_user_id'] ?? 0;
+$currentUserRole = $_SESSION['role'] ?? ($isLegacyAdmin ? 'super_admin' : 'user'); 
+
+// --- SECURITY HEARTBEAT: Check Status Immediately ---
+try {
+    if ($isLegacyAdmin) {
+        $stmtStatus = $conn->prepare("SELECT status FROM admin_users WHERE id = ?");
+    } else {
+        $stmtStatus = $conn->prepare("SELECT status FROM users WHERE id = ?");
+    }
+    $stmtStatus->execute([$currentUserId]);
+    $realTimeStatus = $stmtStatus->fetchColumn();
+
+    if ($realTimeStatus === 'suspended') {
+        session_destroy();
+        header("Location: /admin_login?error=suspended"); // or /login
+        exit();
+    }
+} catch (Exception $e) { /* Ignore check errors to avoid lockout on DB fail */ }
+// ----------------------------------------------------
 
 // =================================================================================================
 // IMAGE UPLOAD CONFIGURATION
@@ -36,7 +61,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     // Note: Database connection $conn is assumed to be available globally from your config file
     // Note: Database connection $conn is assumed to be available globally from your config file
     
-    // AJAX Action for deleting gallery image
+    // --- USER MANAGEMENT (SECURED) ---
+    if ($_POST['action'] === 'toggle_suspend') {
+        $userId = filter_input(INPUT_POST, 'user_id', FILTER_VALIDATE_INT);
+        $currentStatus = $_POST['current_status'];
+        
+        // Security Check: Get Target Role
+        $stmtCheck = $conn->prepare("SELECT role FROM users WHERE id = ?");
+        $stmtCheck->execute([$userId]);
+        $targetRole = $stmtCheck->fetchColumn();
+        
+        // Block modification of Super Admin
+        if ($targetRole === 'super_admin' || $userId == 1) { 
+             $_SESSION['error_message'] = "Action denied: Cannot suspend Super Admin.";
+        } elseif ($userId == $currentUserId && !$isLegacyAdmin) {
+             $_SESSION['error_message'] = "Action denied: Cannot suspend yourself.";
+        } else {
+             $newStatus = ($currentStatus === 'suspended') ? 'active' : 'suspended';
+             $stmt = $conn->prepare("UPDATE users SET status = ? WHERE id = ?");
+             $stmt->execute([$newStatus, $userId]);
+             $_SESSION['success_message'] = "User status updated.";
+        }
+        header("Location: ?page=users");
+        exit();
+    }
+
+    if ($_POST['action'] === 'delete_user') {
+        $userId = filter_input(INPUT_POST, 'user_id', FILTER_VALIDATE_INT);
+        $stmtCheck = $conn->prepare("SELECT role FROM users WHERE id = ?");
+        $stmtCheck->execute([$userId]);
+        $targetRole = $stmtCheck->fetchColumn();
+        
+        if ($targetRole === 'super_admin' || $userId == 1 || ($userId == $currentUserId && !$isLegacyAdmin)) {
+             $_SESSION['error_message'] = "Action denied: Cannot remove Super Admin or yourself.";
+        } else {
+            $conn->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
+            $_SESSION['success_message'] = "User deleted.";
+        }
+        header("Location: ?page=users");
+        exit();
+    }
+    
+    if ($_POST['action'] === 'update_role') {
+        $userId = filter_input(INPUT_POST, 'user_id', FILTER_VALIDATE_INT);
+        $newRole = $_POST['role'];
+        
+        // Prevent changing own role or Super Admin's role
+        $stmtCheck = $conn->prepare("SELECT role FROM users WHERE id = ?");
+        $stmtCheck->execute([$userId]);
+        $targetRole = $stmtCheck->fetchColumn();
+        
+        if ($userId == $currentUserId && !$isLegacyAdmin) {
+             $_SESSION['error_message'] = "Cannot change your own role.";
+        } elseif ($targetRole === 'super_admin' || $userId == 1) {
+             $_SESSION['error_message'] = "Cannot demote Super Admin.";
+        } else {
+            $conn->prepare("UPDATE users SET role = ? WHERE id = ?")->execute([$newRole, $userId]);
+            $_SESSION['success_message'] = "User role updated.";
+        }
+        header("Location: ?page=users");
+        exit();
+    }
     if ($_POST['action'] === 'delete_gallery_image') {
         $imgId = filter_input(INPUT_POST, 'image_id', FILTER_VALIDATE_INT);
         if ($imgId) {
@@ -287,7 +372,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             $conn->prepare("UPDATE sizes SET name = ? WHERE id = ?")->execute([$name, $id]);
             $_SESSION['success_message'] = "Size updated.";
-            header('Location: /dashboard?page=sizes');
+        }
+        header('Location: /dashboard?page=sizes');
         exit;
     }
 
@@ -302,9 +388,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $_SESSION['success_message'] = "Collection updated.";
         }
         header('Location: /dashboard?page=collections');
-        exit;
-    }
-        header('Location: /dashboard?page=sizes');
         exit;
     }
 
@@ -362,16 +445,81 @@ if ($page === 'dashboard') {
             // Try adding columns if table exists but cols don't (Migration)
             try { $conn->exec("ALTER TABLE site_visits ADD COLUMN country VARCHAR(100) DEFAULT NULL"); } catch(Exception $e){}
             try { $conn->exec("ALTER TABLE site_visits ADD COLUMN region VARCHAR(100) DEFAULT NULL"); } catch(Exception $e){}
+            try { $conn->exec("ALTER TABLE site_visits ADD COLUMN city VARCHAR(100) DEFAULT NULL"); } catch(Exception $e){}
+            try { $conn->exec("ALTER TABLE site_visits ADD COLUMN device_type VARCHAR(50) DEFAULT NULL"); } catch(Exception $e){}
+            try { $conn->exec("ALTER TABLE site_visits ADD COLUMN os_name VARCHAR(50) DEFAULT NULL"); } catch(Exception $e){}
+            try { $conn->exec("ALTER TABLE site_visits ADD COLUMN country_code VARCHAR(5) DEFAULT NULL"); } catch(Exception $e){}
+            
+            // --- USERS TABLE MIGRATION ---
+            try { $conn->exec("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"); } catch(Exception $e){}
+            try { $conn->exec("ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active'"); } catch(Exception $e){}
+            
             $totalVisits = 0; 
         }
     }
 
-    // Visitor Location Stats
-    $locationStats = [];
+    // --- ENSURE USERS SCHEMA (Explicit Migration) ---
+    try { $conn->exec("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"); } catch(Exception $e){}
+    try { $conn->exec("ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active'"); } catch(Exception $e){}
+
+    // --- VISITOR ANALYTICS DATA ---
+    $analyticsData = [
+        'unique_visits_chart' => [],
+        'device_stats' => [],
+        'os_stats' => [],
+        'top_cities' => [],
+        'top_countries' => [],
+        'total_visitors_change' => 0
+    ];
+
     try {
-        $stmt = $conn->query("SELECT country, region, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE country IS NOT NULL GROUP BY country, region ORDER BY visitors DESC LIMIT 5");
-        if ($stmt) $locationStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // 1. Unique Visits Chart (Last 7 Days)
+        $chartStmt = $conn->query("
+            SELECT DATE(created_at) as date, COUNT(DISTINCT ip_address) as visits 
+            FROM site_visits 
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
+            GROUP BY DATE(created_at) 
+            ORDER BY date ASC
+        ");
+        if ($chartStmt) {
+            $rawChartData = $chartStmt->fetchAll(PDO::FETCH_KEY_PAIR); // Date => Count
+            // Fill missing dates with 0
+            for ($i = 6; $i >= 0; $i--) {
+                $d = date('Y-m-d', strtotime("-$i days"));
+                $analyticsData['unique_visits_chart'][$d] = $rawChartData[$d] ?? 0;
+            }
+        }
+
+        // 2. Device Stats
+        $deviceStmt = $conn->query("SELECT device_type, COUNT(*) as count FROM site_visits WHERE device_type IS NOT NULL GROUP BY device_type");
+        if ($deviceStmt) $analyticsData['device_stats'] = $deviceStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 3. OS Stats
+        $osStmt = $conn->query("SELECT os_name, COUNT(*) as count FROM site_visits WHERE os_name IS NOT NULL GROUP BY os_name");
+        if ($osStmt) $analyticsData['os_stats'] = $osStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 4. Top Cities
+        $cityStmt = $conn->query("SELECT city, country, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY visitors DESC LIMIT 5");
+        if ($cityStmt) $analyticsData['top_cities'] = $cityStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // 5. Top Countries (Enhanced) - Fetch country_code too
+        $countryStmt = $conn->query("SELECT country, country_code, region, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE country IS NOT NULL GROUP BY country ORDER BY visitors DESC LIMIT 200");
+        if ($countryStmt) $analyticsData['top_countries'] = $countryStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Total Visitors Percentage Change (Today vs Yesterday)
+        $visitsToday = $conn->query("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE DATE(created_at) = CURDATE()")->fetchColumn();
+        $visitsYesterday = $conn->query("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)")->fetchColumn();
+        
+        if ($visitsYesterday > 0) {
+            $analyticsData['total_visitors_change'] = round((($visitsToday - $visitsYesterday) / $visitsYesterday) * 100, 2);
+        } else {
+            $analyticsData['total_visitors_change'] = $visitsToday > 0 ? 100 : 0;
+        }
+
     } catch (Exception $e) { /* Ignore */ }
+
+    // Legacy variable for compatibility
+    $locationStats = $analyticsData['top_countries'];
     
     // Recent Orders Logic with Search
     $dashboardSearch = $_GET['dashboard_search'] ?? '';
@@ -382,7 +530,7 @@ if ($page === 'dashboard') {
         $recentParams = ["%$dashboardSearch%", "%$dashboardSearch%"];
     }
     
-    $recentOrders = $conn->prepare("SELECT o.id, o.order_number, o.grand_total, o.shipping_address, o.order_status, o.created_at, c.full_name, c.email 
+    $recentOrders = $conn->prepare("SELECT o.id, o.order_number, o.subtotal, o.shipping_fee, o.discount_amount, o.discount_code, o.grand_total, o.shipping_address, o.order_status, o.created_at, c.full_name, c.email 
                                  FROM orders o JOIN customers c ON o.customer_id = c.id 
                                  $recentWhere
                                  ORDER BY o.created_at DESC LIMIT 8");
@@ -447,6 +595,22 @@ if ($page === 'dashboard') {
         $countryCounts = json_encode([0]);
         $monthLabels = json_encode(['No Data']);
         $monthData = json_encode([0]);
+    }
+}
+
+if ($page === 'users') {
+    try {
+        $sql = "
+            SELECT id, username, status, created_at, 'legacy' as source, role FROM admin_users
+            UNION ALL
+            SELECT id, full_name as username, status, created_at, 'role' as source, role FROM users 
+            WHERE role IN ('admin', 'super_admin')
+            ORDER BY created_at DESC
+        ";
+        $stmt = $conn->query($sql);
+        $allUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $allUsers = [];
     }
 }
 
@@ -523,7 +687,7 @@ if ($page === 'orders') {
     }
 }
 
-if ($page === 'customers') {
+if ($page === 'clients') {
     $searchTerm = $_GET['search'] ?? '';
     $itemsPerPage = 10;
     $currentPage = max(1, intval($_GET['p'] ?? 1));
@@ -587,6 +751,102 @@ if ($page === 'collections') {
     }
 }
 
+if ($page === 'shipping_fees') {
+    // Handle shipping fees actions
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['shipping_action'])) {
+        if ($_POST['shipping_action'] === 'add' || $_POST['shipping_action'] === 'update') {
+            $location_name = trim($_POST['location_name'] ?? '');
+            $country_code = trim($_POST['country_code'] ?? 'NG');
+            $fee = floatval($_POST['fee'] ?? 0);
+            $is_active = isset($_POST['is_active']) ? 1 : 0;
+            $edit_id = intval($_POST['edit_id'] ?? 0);
+
+            if (!empty($location_name) && $fee >= 0) {
+                if ($edit_id > 0) {
+                    $stmt = $conn->prepare("UPDATE shipping_fees SET location_name = ?, country_code = ?, fee = ?, is_active = ? WHERE id = ?");
+                    $stmt->execute([$location_name, $country_code, $fee, $is_active, $edit_id]);
+                    $_SESSION['success_message'] = "Shipping fee updated successfully.";
+                } else {
+                    $stmt = $conn->prepare("INSERT INTO shipping_fees (location_name, country_code, fee, is_active) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$location_name, $country_code, $fee, $is_active]);
+                    $_SESSION['success_message'] = "Shipping fee added successfully.";
+                }
+            }
+        } elseif ($_POST['shipping_action'] === 'delete') {
+            $delete_id = intval($_POST['delete_id'] ?? 0);
+            if ($delete_id > 0) {
+                $conn->prepare("DELETE FROM shipping_fees WHERE id = ?")->execute([$delete_id]);
+                $_SESSION['success_message'] = "Shipping fee deleted successfully.";
+            }
+        } elseif ($_POST['shipping_action'] === 'delete_all') {
+            $conn->exec("DELETE FROM shipping_fees");
+            $_SESSION['success_message'] = "All shipping fees deleted successfully.";
+        }
+        header('Location: /dashboard?page=shipping_fees');
+        exit;
+    }
+
+    // Fetch shipping fees
+    $shippingFees = $conn->query("SELECT * FROM shipping_fees ORDER BY country_code ASC, location_name ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $shippingFeeToEdit = null;
+    if (isset($_GET['edit_id'])) {
+        $stmt = $conn->prepare("SELECT * FROM shipping_fees WHERE id = ?");
+        $stmt->execute([$_GET['edit_id']]);
+        $shippingFeeToEdit = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+}
+
+// ========================
+// DISCOUNT CODES MANAGEMENT
+// ========================
+if ($page === 'discount_codes') {
+    // Handle discount code actions
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['discount_action'])) {
+        if ($_POST['discount_action'] === 'add' || $_POST['discount_action'] === 'update') {
+            $code = strtoupper(trim($_POST['code'] ?? ''));
+            $discount_type = $_POST['discount_type'] ?? 'percentage';
+            $discount_value = floatval($_POST['discount_value'] ?? 0);
+            $min_order_amount = floatval($_POST['min_order_amount'] ?? 0);
+            $max_uses = intval($_POST['max_uses'] ?? 0);
+            $expiry_date = !empty($_POST['expiry_date']) ? $_POST['expiry_date'] : null;
+            $is_active = isset($_POST['is_active']) ? 1 : 0;
+            $edit_id = intval($_POST['edit_id'] ?? 0);
+
+            if (!empty($code) && $discount_value > 0) {
+                if ($edit_id > 0) {
+                    $stmt = $conn->prepare("UPDATE discounts SET code = ?, discount_type = ?, discount_value = ?, min_order_amount = ?, max_uses = ?, expiry_date = ?, is_active = ? WHERE id = ?");
+                    $stmt->execute([$code, $discount_type, $discount_value, $min_order_amount, $max_uses, $expiry_date, $is_active, $edit_id]);
+                    $_SESSION['success_message'] = "Discount code updated successfully.";
+                } else {
+                    $stmt = $conn->prepare("INSERT INTO discounts (code, discount_type, discount_value, min_order_amount, max_uses, expiry_date, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$code, $discount_type, $discount_value, $min_order_amount, $max_uses, $expiry_date, $is_active]);
+                    $_SESSION['success_message'] = "Discount code added successfully.";
+                }
+            }
+        } elseif ($_POST['discount_action'] === 'delete') {
+            $delete_id = intval($_POST['delete_id'] ?? 0);
+            if ($delete_id > 0) {
+                $conn->prepare("DELETE FROM discounts WHERE id = ?")->execute([$delete_id]);
+                $_SESSION['success_message'] = "Discount code deleted successfully.";
+            }
+        } elseif ($_POST['discount_action'] === 'delete_all') {
+            $conn->exec("DELETE FROM discounts");
+            $_SESSION['success_message'] = "All discount codes deleted successfully.";
+        }
+        header('Location: /dashboard?page=discount_codes');
+        exit;
+    }
+
+    // Fetch discount codes
+    $discountCodes = $conn->query("SELECT * FROM discounts ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+    $discountToEdit = null;
+    if (isset($_GET['edit_id'])) {
+        $stmt = $conn->prepare("SELECT * FROM discounts WHERE id = ?");
+        $stmt->execute([$_GET['edit_id']]);
+        $discountToEdit = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+}
+
 if ($page === 'add_product') {
     $colors = $conn->query("SELECT * FROM colors ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $sizes = $conn->query("SELECT * FROM sizes ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -627,12 +887,19 @@ function getStatusBadge($status) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/png" href="<?=$logo_directory?>" />
     <title>Admin Dashboard | <?= $site_name ?? 'VIENNA' ?></title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- JSVectorMap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap/dist/css/jsvectormap.min.css" />
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; }
         .glass-sidebar { background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); }
@@ -641,6 +908,9 @@ function getStatusBadge($status) {
         .glass-card { background: white; border: 1px solid #e2e8f0; border-radius: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
         .stats-icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
         input:focus, select:focus, textarea:focus { border-color: #6366f1 !important; ring: 2px #6366f120; }
+        /* Hide scrollbar while keeping scroll functionality */
+        .overflow-y-auto, .glass-sidebar { scrollbar-width: none; -ms-overflow-style: none; }
+        .overflow-y-auto::-webkit-scrollbar, .glass-sidebar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body x-data="{ sidebarOpen: false }">
@@ -648,9 +918,9 @@ function getStatusBadge($status) {
     <!-- Mobile Overlay -->
     <div x-show="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-slate-900/60 z-40 md:hidden backdrop-blur-sm"></div>
 
-    <div class="flex min-h-screen">
+    <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
-                <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" class="glass-sidebar w-64 text-slate-400 fixed inset-y-0 left-0 z-50 transform md:relative md:translate-x-0 transition duration-300 ease-in-out">
+                <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" class="glass-sidebar w-64 text-slate-400 fixed inset-y-0 left-0 z-50 transform md:sticky md:top-0 md:translate-x-0 md:h-screen md:overflow-y-auto transition duration-300 ease-in-out">
             <div class="h-20 flex items-center justify-between px-6 border-b border-slate-800">
                 <div class="flex items-center gap-3">
                     <?php if (!empty($logo_directory)): ?>
@@ -678,8 +948,8 @@ function getStatusBadge($status) {
                 <a href="?page=dashboard" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'dashboard' ? 'active' : '' ?>">
                     <i class="fa-solid fa-chart-line w-5"></i><span class="ml-3 font-medium">Dashboard</span>
                 </a>
-                <a href="?page=customers" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'customers' ? 'active' : '' ?>">
-                    <i class="fa-solid fa-users w-5"></i><span class="ml-3 font-medium">Customers</span>
+                <a href="?page=clients" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'clients' ? 'active' : '' ?>">
+                    <i class="fa-solid fa-users w-5"></i><span class="ml-3 font-medium">Clients</span>
                 </a>
 
                 <p class="text-[10px] uppercase font-bold text-slate-500 px-3 mt-8 mb-2 tracking-widest">Inventory</p>
@@ -699,13 +969,19 @@ function getStatusBadge($status) {
                 </a>
                 
                 <p class="text-[10px] uppercase font-bold text-slate-500 px-3 mt-8 mb-2 tracking-widest">Settings</p>
+                <a href="?page=shipping_fees" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'shipping_fees' ? 'active' : '' ?>">
+                    <i class="fa-solid fa-truck w-5"></i><span class="ml-3 font-medium">Shipping Fees</span>
+                </a>
+                <a href="?page=discount_codes" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'discount_codes' ? 'active' : '' ?>">
+                    <i class="fa-solid fa-percent w-5"></i><span class="ml-3 font-medium">Discount Codes</span>
+                </a>
                 <!-- <a href="?page=colors" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'colors' ? 'active' : '' ?>">
                     <i class="fa-solid fa-palette w-5"></i><span class="ml-3 font-medium">Colors</span>
                 </a>
                 <a href="?page=sizes" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'sizes' ? 'active' : '' ?>">
                     <i class="fa-solid fa-ruler-combined w-5"></i><span class="ml-3 font-medium">Sizes</span>
                 </a> -->
-                <a href="?page=manage_admins" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'manage_admins' ? 'active' : '' ?>">
+                <a href="?page=users" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'users' ? 'active' : '' ?>">
                     <i class="fa-solid fa-users-gear w-5"></i><span class="ml-3 font-medium">Admin Users</span>
                 </a>
 
@@ -721,7 +997,7 @@ function getStatusBadge($status) {
         </aside>
 
         <!-- Main Content -->
-        <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
             <!-- Header -->
             <header class="h-20 bg-white border-b flex items-center justify-between px-6 sticky top-0 z-30">
                 <div class="flex items-center">
@@ -776,7 +1052,7 @@ function getStatusBadge($status) {
                             <div class="glass-card p-6 flex items-center">
                                 <div class="stats-icon bg-emerald-50 text-emerald-600"><i class="fa-solid fa-users text-xl"></i></div>
                                 <div class="ml-5">
-                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">New Customers</p>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">New Clients</p>
                                     <h3 class="text-2xl font-black text-slate-800"><?= number_format($newCustomers) ?></h3>
                                 </div>
                             </div>
@@ -837,34 +1113,126 @@ function getStatusBadge($status) {
                                     </div>
                                 <?php endif; ?>
                             </div>
-                            <!-- Visitor Locations -->
-                            <div class="glass-card p-6">
-                                <h4 class="font-bold text-slate-800 mb-6">Visitor Locations</h4>
-                                <?php if (!empty($locationStats)): ?>
-                                    <div class="space-y-4">
-                                        <?php foreach ($locationStats as $loc): ?>
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 text-xs font-bold">
-                                                        <?= strtoupper(substr($loc['country'], 0, 2)) ?>
+                            <!-- Visitor Locations (Removed - Replaced by Traffic Analytics Section) -->
+                            <!-- Unique Visitors (Moved) -->
+                            <!-- Removed, merged into new layout below -->
+                        </div>
+
+                        <!-- Traffic Analytics Layout -->
+                        <div class="mt-10 mb-10 space-y-6">
+                             <!-- Header & Time Range -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <h4 class="text-xl font-bold text-slate-800">Traffic Analytics</h4>
+                                <div class="bg-white rounded-lg p-1 flex items-center border shadow-sm">
+                                    <button class="px-3 py-1 text-xs font-bold bg-slate-800 text-white rounded shadow-sm">Today</button>
+                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">1 Week</button>
+                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">1 Month</button>
+                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">1 Year</button>
+                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">All Time</button>
+                                </div>
+                            </div>
+
+                            <!-- Row 1: Line Chart (Wide) | Stats Col (Narrow) -->
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <!-- Unique VisitorsChart (Span 2) -->
+                                <div class="glass-card p-6 lg:col-span-2">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h4 class="font-bold text-slate-800">Unique Visitors</h4>
+                                        <div class="text-xs font-bold text-slate-400">Past 7 Days</div>
+                                    </div>
+                                    <div class="h-80"><canvas id="uniqueVisitsChart"></canvas></div>
+                                </div>
+                                
+                                <!-- Right Column -->
+                                <div class="space-y-6">
+                                    <!-- Total Stats -->
+                                    <div class="glass-card p-6 bg-slate-600 text-white relative overflow-hidden">
+                                        <div class="relative z-10">
+                                            <p class="text-xs font-bold text-slate-100 uppercase tracking-widest">Total Visitors</p>
+                                            <h3 class="text-5xl font-black mt-3 text-white"><?= number_format($totalVisits) ?></h3>
+                                            <div class="mt-4 flex items-center text-xs font-bold">
+                                                <span class="bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1">
+                                                    <i class="fa-solid fa-arrow-trend-up"></i> <?= abs($analyticsData['total_visitors_change']) ?>%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Device Stats -->
+                                    <div class="glass-card p-6">
+                                        <h4 class="font-bold text-slate-800 mb-2 text-sm">Pageview by Device</h4>
+                                        <div class="h-40"><canvas id="deviceChart"></canvas></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: OS & Cities -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <!-- OS Stats -->
+                                <div class="glass-card p-6">
+                                    <h4 class="font-bold text-slate-800 mb-4">Operating System</h4>
+                                    <div class="h-56 flex items-center justify-center"><canvas id="osChart"></canvas></div>
+                                </div>
+                                <!-- Top Cities -->
+                                <div class="glass-card p-6">
+                                    <h4 class="font-bold text-slate-800 mb-4">Top Cities</h4>
+                                    <div class="space-y-4 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
+                                        <?php if (!empty($analyticsData['top_cities'])): ?>
+                                            <?php foreach ($analyticsData['top_cities'] as $city): 
+                                                $percentage = $totalVisits > 0 ? round(($city['visitors'] / $totalVisits) * 100, 1) : 0;
+                                            ?>
+                                            <div>
+                                                <div class="flex justify-between text-xs font-bold mb-1">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                                        <span class="text-slate-700 truncate max-w-[150px]" title="<?= $city['city'] ?>"><?= $city['city'] ?></span>
                                                     </div>
-                                                    <div>
-                                                        <p class="text-sm font-bold text-slate-700"><?= $loc['country'] ?></p>
-                                                        <p class="text-[10px] text-slate-400 font-medium"><?= $loc['region'] ?></p>
+                                                    <div class="flex items-center gap-3">
+                                                        <span class="text-slate-800"><?= $city['visitors'] ?></span>
+                                                        <span class="text-[10px] text-emerald-500 bg-emerald-50 px-1 py-0.5 rounded"><?= $percentage ?>%</span>
                                                     </div>
                                                 </div>
-                                                <span class="text-xs font-bold text-slate-600"><?= $loc['visitors'] ?> Visitors</span>
                                             </div>
-                                        <?php endforeach; ?>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <p class="text-xs text-slate-400 text-center py-4">No city data available</p>
+                                        <?php endif; ?>
                                     </div>
-                                <?php else: ?>
-                                    <div class="h-72 flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-100 rounded-xl">
-                                        <i class="fa-solid fa-map-location-dot text-4xl mb-3"></i>
-                                        <p class="font-bold text-sm">No Location Data Yet</p>
-                                    </div>
-                                <?php endif; ?>
+                                </div>
                             </div>
-                        </div>
+
+                            <!-- Row 3: Map & Country List -->
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <!-- Map (Span 2) -->
+                                <div class="glass-card p-6 lg:col-span-2">
+                                     <div id="world-map" style="width: 100%; height: 350px;"></div>
+                                </div>
+                                <!-- Country List -->
+                                <div class="glass-card p-6">
+                                     <h4 class="font-bold text-slate-800 mb-4">Countries</h4>
+                                     <div class="space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
+                                        <?php if (!empty($analyticsData['top_countries'])): ?>
+                                            <?php foreach ($analyticsData['top_countries'] as $country): 
+                                                $percentage = $totalVisits > 0 ? round(($country['visitors'] / $totalVisits) * 100, 1) : 0;
+                                            ?>
+                                            <div class="flex items-center gap-3 border-b border-dashed border-slate-100 pb-3 last:border-0 last:pb-0">
+                                                <div class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></div>
+                                                <div class="flex-1">
+                                                    <div class="flex justify-between text-xs font-bold mb-1">
+                                                        <span class="text-slate-700"><?= $country['country'] ?></span>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right">
+                                                    <span class="block text-sm font-bold text-slate-800"><?= $country['visitors'] ?></span>
+                                                    <span class="text-[10px] text-emerald-500 font-bold"><?= $percentage ?>%</span>
+                                                </div>
+                                            </div>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <div class="py-8 text-center text-slate-400 italic">No country data available yet.</div>
+                                        <?php endif; ?>
+                                     </div>
+                                </div>
+                            </div>
 
                         <!-- Orders Table -->
                         <div class="glass-card mt-10 overflow-hidden" x-data="{ showModal: false, selectedOrder: null, 
@@ -900,7 +1268,7 @@ function getStatusBadge($status) {
                                     <thead class="bg-slate-50 border-b border-slate-100">
                                         <tr>
                                             <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ref</th>
-                                            <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
+                                            <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</th>
                                             <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                                             <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</th>
                                             <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
@@ -949,7 +1317,7 @@ function getStatusBadge($status) {
                                         <!-- Customer Info -->
                                         <div class="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
                                             <div>
-                                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Customer</p>
+                                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Client</p>
                                                 <p class="font-bold text-slate-700" x-text="selectedOrder?.full_name"></p>
                                                 <p class="text-sm text-slate-500" x-text="selectedOrder?.email"></p>
                                             </div>
@@ -1015,6 +1383,124 @@ function getStatusBadge($status) {
                                        
                                         <a :href="`/invoice?order_number=${selectedOrder?.order_number}&download=true`" class="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 transition">Download Invoice</a>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php break; ?>
+
+                    <?php case 'users': ?>
+                        <div class="max-w-7xl mx-auto">
+                            <!-- Header -->
+                            <div class="flex justify-between items-center mb-8">
+                                <div>
+                                    <h3 class="text-2xl font-bold text-slate-800">User Management</h3>
+                                    <p class="text-sm text-slate-500 font-medium mt-1">Manage user access, roles, and status.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Invite New Admin Card -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
+                                <h4 class="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <i class="fa-solid fa-paper-plane"></i> Invite New Administrator
+                                </h4>
+                                <div class="flex flex-col md:flex-row gap-4">
+                                    <div class="flex-1 relative">
+                                        <input type="text" id="main-invite-link-output" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" readonly placeholder="The invitation link will appear here...">
+                                        <button id="main-copy-invite-btn" class="hidden absolute right-3 top-1/2 -translate-y-1/2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-indigo-100 transition">COPY</button>
+                                    </div>
+                                    <button id="main-generate-invite-btn" class="bg-slate-900 text-white px-8 py-3 rounded-xl text-sm font-black shadow-lg shadow-slate-200 hover:bg-slate-800 transition flex items-center justify-center gap-2">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Invitation
+                                    </button>
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-3 font-medium">Invitation links are unique and expire after 24 hours. They can only be used to create one account.</p>
+                            </div>
+
+                            <div class="glass-card overflow-hidden">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left">
+                                        <thead class="bg-slate-50 border-b border-slate-100">
+                                            <tr>
+                                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">User</th>
+                                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Source</th>
+                                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Role</th>
+                                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="main-admin-table-body" class="divide-y divide-slate-50">
+                                            <?php if (!empty($allUsers)): ?>
+                                                <?php foreach ($allUsers as $user): 
+                                                    $isLegacyType = ($user['source'] === 'legacy');
+                                                    $isSelf = ($user['id'] == $currentUserId && $isLegacyAdmin == $isLegacyType);
+                                                ?>
+                                                <tr class="hover:bg-slate-50 transition">
+                                                    <td class="px-6 py-4">
+                                                        <div class="flex items-center gap-3">
+                                                            <div class="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-[10px] font-black uppercase">
+                                                                <?= substr($user['username'], 0, 2) ?>
+                                                            </div>
+                                                            <div>
+                                                                <p class="text-xs font-bold text-slate-700 leading-tight"><?= htmlspecialchars($user['username']) ?></p>
+                                                                <p class="text-[10px] text-slate-400">Joined <?= date('M j, Y', strtotime($user['created_at'])) ?></p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-6 py-4">
+                                                        <span class="text-[10px] font-medium text-slate-500 italic"><?= $isLegacyType ? 'Legacy DB' : 'Role-Based' ?></span>
+                                                    </td>
+                                                    <td class="px-6 py-4">
+                                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider <?= strpos($user['role'], 'super') !== false ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600' ?>">
+                                                            <?= htmlspecialchars($user['role'] ?? 'admin') ?>
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-6 py-4">
+                                                        <?php if ($user['status'] === 'active'): ?>
+                                                            <span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                                                            </span>
+                                                        <?php elseif ($user['status'] === 'pending'): ?>
+                                                            <span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pending
+                                                            </span>
+                                                        <?php else: ?>
+                                                            <span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-rose-100 text-rose-700">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Suspended
+                                                            </span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td class="px-6 py-4 text-right">
+                                                        <?php if ($isSelf): ?>
+                                                            <span class="text-[9px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded">YOU</span>
+                                                        <?php else: ?>
+                                                            <div class="flex justify-end gap-2">
+                                                                <?php if ($user['status'] === 'pending'): ?>
+                                                                    <button onclick="approveUser(<?= $user['id'] ?>, '<?= $user['source'] ?>')" class="text-emerald-500 hover:text-emerald-700 text-[10px] font-black uppercase">Approve</button>
+                                                                <?php endif; ?>
+                                                                <button onclick="changeStatus(<?= $user['id'] ?>, '<?= $user['source'] ?>', '<?= $user['status'] === 'suspended' ? 'reactivate' : 'suspend' ?>')" class="<?= $user['status'] === 'suspended' ? 'text-emerald-500' : 'text-amber-500' ?> hover:opacity-75 transition" title="<?= $user['status'] === 'suspended' ? 'Reactivate' : 'Suspend' ?>">
+                                                                    <i class="fa-solid <?= $user['status'] === 'suspended' ? 'fa-check' : 'fa-ban' ?>"></i>
+                                                                </button>
+                                                                <button onclick="deleteUser(<?= $user['id'] ?>, '<?= $user['source'] ?>')" class="text-rose-400 hover:text-rose-600 transition" title="Delete">
+                                                                    <i class="fa-solid fa-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                </tr>
+                                                <?php endforeach; ?>
+                                            <?php else: ?>
+                                                <tr>
+                                                    <td colspan="5" class="text-center py-12">
+                                                        <div class="flex flex-col items-center">
+                                                            <div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                                                <i class="fa-solid fa-users text-slate-300 text-xl"></i>
+                                                            </div>
+                                                            <p class="text-slate-400 italic text-sm">No administrators found.</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            <?php endif; ?>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -1830,6 +2316,356 @@ function getStatusBadge($status) {
 
                     <?php break; ?>
 
+                    <?php case 'shipping_fees': ?>
+                        <script>
+                            function shippingFeesData() {
+                                return {
+                                    editModal: false,
+                                    editData: {},
+                                    searchQuery: '',
+                                    fees: <?= json_encode($shippingFees ?? []) ?>,
+                                    get filteredFees() {
+                                        if (!this.searchQuery.trim()) return this.fees;
+                                        const q = this.searchQuery.toLowerCase();
+                                        return this.fees.filter(f => f.location_name.toLowerCase().includes(q) || f.country_code.toLowerCase().includes(q));
+                                    },
+                                    init() {}
+                                }
+                            }
+                        </script>
+                        <div class="max-w-5xl mx-auto" x-data="shippingFeesData()" x-init="init()">
+                            <!-- Header + Add Form Row -->
+                            <div class="glass-card p-6 mb-6">
+                                <div class="flex flex-col md:flex-row md:items-end gap-4">
+                                    <div class="flex-shrink-0">
+                                        <h3 class="text-xl font-bold text-slate-800">Shipping Fees</h3>
+                                        <p class="text-xs text-slate-400">Add delivery locations and fees</p>
+                                    </div>
+                                    <form method="POST" class="flex-1 flex flex-wrap items-end gap-3">
+                                        <input type="hidden" name="shipping_action" value="add">
+                                        <div class="flex-1 min-w-[140px]">
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Location</label>
+                                            <input type="text" name="location_name" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" placeholder="Lagos Mainland">
+                                        </div>
+                                        <div class="w-28">
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Country</label>
+                                            <select name="country_code" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400">
+                                                <option value="NG">NG</option>
+                                                <option value="US">US</option>
+                                                <option value="GB">GB</option>
+                                                <option value="CA">CA</option>
+                                                <option value="GH">GH</option>
+                                            </select>
+                                        </div>
+                                        <div class="w-28">
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Fee (₦)</label>
+                                            <input type="number" name="fee" step="0.01" min="0" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" placeholder="2500">
+                                        </div>
+                                        <input type="hidden" name="is_active" value="1">
+                                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded-lg text-sm transition">
+                                            <i class="fa-solid fa-plus mr-1"></i> Add
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Shipping Fees Table -->
+                            <div class="glass-card overflow-hidden">
+                                <div class="px-6 py-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div class="flex items-center gap-3">
+                                        <h4 class="font-bold text-slate-800">All Fees <span class="text-slate-400 font-medium" x-text="'(' + filteredFees.length + ')'"></span></h4>
+                                        <?php if (!empty($shippingFees)): ?>
+                                            <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to DELETE ALL shipping fees? This cannot be undone.')">
+                                                <input type="hidden" name="shipping_action" value="delete_all">
+                                                <button type="submit" class="text-rose-500 hover:text-rose-700 text-xs font-bold flex items-center gap-1">
+                                                    <i class="fa-solid fa-trash-can"></i> Delete All
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="relative">
+                                        <input type="text" x-model="searchQuery" placeholder="Search locations..." class="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 w-full sm:w-56">
+                                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
+                                    </div>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left">
+                                        <thead>
+                                            <tr class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
+                                                <th class="px-6 py-3">Location</th>
+                                                <th class="px-6 py-3">Country</th>
+                                                <th class="px-6 py-3">Fee</th>
+                                                <th class="px-6 py-3">Status</th>
+                                                <th class="px-6 py-3 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            <template x-for="sf in filteredFees" :key="sf.id">
+                                                <tr class="hover:bg-slate-50 transition">
+                                                    <td class="px-6 py-3 font-medium text-slate-800" x-text="sf.location_name"></td>
+                                                    <td class="px-6 py-3 text-slate-500" x-text="sf.country_code"></td>
+                                                    <td class="px-6 py-3 font-bold text-slate-800" x-text="'₦' + parseFloat(sf.fee).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})"></td>
+                                                    <td class="px-6 py-3">
+                                                        <span x-show="sf.is_active == 1" class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Active</span>
+                                                        <span x-show="sf.is_active != 1" class="px-2 py-0.5 bg-slate-100 text-slate-400 text-[10px] font-bold rounded-full">Inactive</span>
+                                                    </td>
+                                                    <td class="px-6 py-3 text-right">
+                                                        <button @click="editModal = true; editData = { id: sf.id, location_name: sf.location_name, country_code: sf.country_code, fee: sf.fee, is_active: sf.is_active == 1 }" class="text-indigo-600 hover:text-indigo-800 text-xs font-bold mr-3">Edit</button>
+                                                        <form method="POST" class="inline" onsubmit="return confirm('Delete this shipping fee?')">
+                                                            <input type="hidden" name="shipping_action" value="delete">
+                                                            <input type="hidden" name="delete_id" :value="sf.id">
+                                                            <button type="submit" class="text-rose-500 hover:text-rose-700 text-xs font-bold">Delete</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                            <tr x-show="filteredFees.length === 0">
+                                                <td colspan="5" class="text-center py-8 text-slate-400 font-medium">
+                                                    <span x-show="fees.length === 0">No shipping fees configured yet.</span>
+                                                    <span x-show="fees.length > 0 && filteredFees.length === 0">No results found for "<span x-text="searchQuery"></span>"</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Edit Modal -->
+                            <div x-show="editModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+                                <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="editModal = false"></div>
+                                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" @click.stop>
+                                    <div class="flex items-center justify-between mb-5">
+                                        <h4 class="text-lg font-bold text-slate-800">Edit Shipping Fee</h4>
+                                        <button @click="editModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                                    </div>
+                                    <form method="POST">
+                                        <input type="hidden" name="shipping_action" value="update">
+                                        <input type="hidden" name="edit_id" x-bind:value="editData.id">
+                                        <div class="space-y-4">
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Location Name</label>
+                                                <input type="text" name="location_name" x-bind:value="editData.location_name" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400">
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Country</label>
+                                                    <select name="country_code" x-model="editData.country_code" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400">
+                                                        <option value="NG">Nigeria (NG)</option>
+                                                        <option value="US">United States (US)</option>
+                                                        <option value="GB">United Kingdom (GB)</option>
+                                                        <option value="CA">Canada (CA)</option>
+                                                        <option value="GH">Ghana (GH)</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Fee (₦)</label>
+                                                    <input type="number" name="fee" x-bind:value="editData.fee" step="0.01" min="0" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400">
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <input type="checkbox" name="is_active" id="edit_is_active" x-bind:checked="editData.is_active" class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
+                                                <label for="edit_is_active" class="text-sm font-medium text-slate-700">Active</label>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-3 mt-6">
+                                            <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition">Update Fee</button>
+                                            <button type="button" @click="editModal = false" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 px-4 rounded-xl text-sm transition">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    <?php break; ?>
+
+                    <?php case 'discount_codes': ?>
+                        <script>
+                            function discountCodesData() {
+                                return {
+                                    editModal: false,
+                                    editData: {},
+                                    searchQuery: '',
+                                    codes: <?= json_encode($discountCodes ?? []) ?>,
+                                    get filteredCodes() {
+                                        if (!this.searchQuery.trim()) return this.codes;
+                                        const q = this.searchQuery.toLowerCase();
+                                        return this.codes.filter(c => c.code.toLowerCase().includes(q));
+                                    },
+                                    formatDate(dateStr) {
+                                        if (!dateStr) return 'No expiry';
+                                        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                                    },
+                                    isExpired(dateStr) {
+                                        if (!dateStr) return false;
+                                        return new Date(dateStr) < new Date();
+                                    }
+                                }
+                            }
+                        </script>
+                        <div class="max-w-6xl mx-auto" x-data="discountCodesData()">
+                            <!-- Header + Add Form Row -->
+                            <div class="glass-card p-6 mb-6">
+                                <div class="flex flex-col gap-4">
+                                    <div class="flex-shrink-0">
+                                        <h3 class="text-xl font-bold text-slate-800">Discount Codes</h3>
+                                        <p class="text-xs text-slate-400">Create and manage promotional discount codes</p>
+                                    </div>
+                                    <form method="POST" class="grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
+                                        <input type="hidden" name="discount_action" value="add">
+                                        <div class="col-span-2 md:col-span-1">
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Code</label>
+                                            <input type="text" name="code" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 uppercase" placeholder="SAVE20">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Type</label>
+                                            <select name="discount_type" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400">
+                                                <option value="percentage">Percentage (%)</option>
+                                                <option value="fixed">Fixed (₦)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Value</label>
+                                            <input type="number" name="discount_value" step="0.01" min="0" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" placeholder="20">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Min Order (₦)</label>
+                                            <input type="number" name="min_order_amount" step="0.01" min="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" placeholder="0">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Expiry Date</label>
+                                            <input type="date" name="expiry_date" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400">
+                                        </div>
+                                        <input type="hidden" name="is_active" value="1">
+                                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded-lg text-sm transition h-[38px]">
+                                            <i class="fa-solid fa-plus mr-1"></i> Add
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Discount Codes Table -->
+                            <div class="glass-card overflow-hidden">
+                                <div class="px-6 py-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div class="flex items-center gap-3">
+                                        <h4 class="font-bold text-slate-800">All Codes <span class="text-slate-400 font-medium" x-text="'(' + filteredCodes.length + ')'"></span></h4>
+                                        <?php if (!empty($discountCodes)): ?>
+                                            <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to DELETE ALL discount codes? This cannot be undone.')">
+                                                <input type="hidden" name="discount_action" value="delete_all">
+                                                <button type="submit" class="text-rose-500 hover:text-rose-700 text-xs font-bold flex items-center gap-1">
+                                                    <i class="fa-solid fa-trash-can"></i> Delete All
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="relative">
+                                        <input type="text" x-model="searchQuery" placeholder="Search codes..." class="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 w-full sm:w-56">
+                                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
+                                    </div>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left">
+                                        <thead>
+                                            <tr class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
+                                                <th class="px-6 py-3">Code</th>
+                                                <th class="px-6 py-3">Type</th>
+                                                <th class="px-6 py-3">Value</th>
+                                                <th class="px-6 py-3">Min Order</th>
+                                                <th class="px-6 py-3">Expiry</th>
+                                                <th class="px-6 py-3">Status</th>
+                                                <th class="px-6 py-3 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            <template x-for="dc in filteredCodes" :key="dc.id">
+                                                <tr class="hover:bg-slate-50 transition">
+                                                    <td class="px-6 py-3 font-bold text-indigo-600" x-text="dc.code"></td>
+                                                    <td class="px-6 py-3 text-slate-500 capitalize" x-text="dc.discount_type"></td>
+                                                    <td class="px-6 py-3 font-bold text-slate-800">
+                                                        <span x-text="dc.discount_type === 'percentage' ? dc.discount_value + '%' : '₦' + parseFloat(dc.discount_value).toLocaleString()"></span>
+                                                    </td>
+                                                    <td class="px-6 py-3 text-slate-500" x-text="dc.min_order_amount > 0 ? '₦' + parseFloat(dc.min_order_amount).toLocaleString() : 'None'"></td>
+                                                    <td class="px-6 py-3">
+                                                        <span x-text="formatDate(dc.expiry_date)" :class="isExpired(dc.expiry_date) ? 'text-rose-500' : 'text-slate-500'"></span>
+                                                    </td>
+                                                    <td class="px-6 py-3">
+                                                        <span x-show="dc.is_active == 1 && !isExpired(dc.expiry_date)" class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Active</span>
+                                                        <span x-show="dc.is_active != 1" class="px-2 py-0.5 bg-slate-100 text-slate-400 text-[10px] font-bold rounded-full">Inactive</span>
+                                                        <span x-show="dc.is_active == 1 && isExpired(dc.expiry_date)" class="px-2 py-0.5 bg-rose-50 text-rose-500 text-[10px] font-bold rounded-full">Expired</span>
+                                                    </td>
+                                                    <td class="px-6 py-3 text-right">
+                                                        <button @click="editModal = true; editData = { id: dc.id, code: dc.code, discount_type: dc.discount_type, discount_value: dc.discount_value, min_order_amount: dc.min_order_amount, max_uses: dc.max_uses, expiry_date: dc.expiry_date, is_active: dc.is_active == 1 }" class="text-indigo-600 hover:text-indigo-800 text-xs font-bold mr-3">Edit</button>
+                                                        <form method="POST" class="inline" onsubmit="return confirm('Delete this discount code?')">
+                                                            <input type="hidden" name="discount_action" value="delete">
+                                                            <input type="hidden" name="delete_id" :value="dc.id">
+                                                            <button type="submit" class="text-rose-500 hover:text-rose-700 text-xs font-bold">Delete</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                            <tr x-show="filteredCodes.length === 0">
+                                                <td colspan="7" class="text-center py-8 text-slate-400 font-medium">
+                                                    <span x-show="codes.length === 0">No discount codes configured yet.</span>
+                                                    <span x-show="codes.length > 0 && filteredCodes.length === 0">No results found for "<span x-text="searchQuery"></span>"</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Edit Modal -->
+                            <div x-show="editModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+                                <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="editModal = false"></div>
+                                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" @click.stop>
+                                    <div class="flex items-center justify-between mb-5">
+                                        <h4 class="text-lg font-bold text-slate-800">Edit Discount Code</h4>
+                                        <button @click="editModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                                    </div>
+                                    <form method="POST">
+                                        <input type="hidden" name="discount_action" value="update">
+                                        <input type="hidden" name="edit_id" x-bind:value="editData.id">
+                                        <div class="space-y-4">
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Code</label>
+                                                <input type="text" name="code" x-bind:value="editData.code" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400 uppercase">
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Type</label>
+                                                    <select name="discount_type" x-model="editData.discount_type" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400">
+                                                        <option value="percentage">Percentage (%)</option>
+                                                        <option value="fixed">Fixed (₦)</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Value</label>
+                                                    <input type="number" name="discount_value" x-bind:value="editData.discount_value" step="0.01" min="0" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400">
+                                                </div>
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Min Order (₦)</label>
+                                                    <input type="number" name="min_order_amount" x-bind:value="editData.min_order_amount" step="0.01" min="0" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Expiry Date</label>
+                                                    <input type="date" name="expiry_date" x-bind:value="editData.expiry_date" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400">
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <input type="checkbox" name="is_active" id="edit_discount_active" x-bind:checked="editData.is_active" class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
+                                                <label for="edit_discount_active" class="text-sm font-medium text-slate-700">Active</label>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-3 mt-6">
+                                            <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition">Update Code</button>
+                                            <button type="button" @click="editModal = false" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 px-4 rounded-xl text-sm transition">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    <?php break; ?>
+
                     <?php case 'manage_admins': ?>
                          <div class="max-w-4xl mx-auto">
                             <!-- Header -->
@@ -1923,7 +2759,7 @@ function getStatusBadge($status) {
                                     <thead>
                                         <tr class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
                                             <th class="px-8 py-4">Ref</th>
-                                            <th class="px-8 py-4">Customer</th>
+                                            <th class="px-8 py-4">Client</th>
                                             <th class="px-8 py-4">Date</th>
                                             <th class="px-8 py-4">Total</th>
                                             <th class="px-8 py-4">Status</th>
@@ -1976,7 +2812,7 @@ function getStatusBadge($status) {
                                         <!-- Customer Info -->
                                         <div class="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
                                             <div>
-                                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Customer</p>
+                                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Client</p>
                                                 <p class="font-bold text-slate-700" x-text="selectedOrder?.full_name"></p>
                                                 <p class="text-sm text-slate-500" x-text="selectedOrder?.email"></p>
                                             </div>
@@ -2020,11 +2856,15 @@ function getStatusBadge($status) {
                                             <div class="w-full sm:w-1/2 space-y-2">
                                                 <div class="flex justify-between text-sm text-slate-500">
                                                     <span>Subtotal</span>
-                                                    <span class="font-bold text-slate-700" x-text="'₦' + new Intl.NumberFormat().format(selectedOrder?.order_total_amount)"></span>
+                                                    <span class="font-bold text-slate-700" x-text="'₦' + new Intl.NumberFormat().format(selectedOrder?.subtotal || 0)"></span>
                                                 </div>
-                                                <div class="flex justify-between text-sm text-slate-500">
+                                                <div class="flex justify-between text-sm text-slate-500" x-show="selectedOrder?.shipping_fee > 0">
                                                     <span>Shipping</span>
-                                                    <span class="font-bold text-slate-700" x-text="'₦' + new Intl.NumberFormat().format(selectedOrder?.shipping_fee)"></span>
+                                                    <span class="font-bold text-slate-700" x-text="'₦' + new Intl.NumberFormat().format(selectedOrder?.shipping_fee || 0)"></span>
+                                                </div>
+                                                <div class="flex justify-between text-sm text-green-600" x-show="selectedOrder?.discount_amount > 0">
+                                                    <span>Discount <span x-show="selectedOrder?.discount_code" class="text-xs bg-green-100 px-1.5 py-0.5 rounded font-bold" x-text="selectedOrder?.discount_code"></span></span>
+                                                    <span class="font-bold" x-text="'-₦' + new Intl.NumberFormat().format(selectedOrder?.discount_amount || 0)"></span>
                                                 </div>
                                                 <div class="flex justify-between text-lg font-black text-slate-800 pt-2 border-t">
                                                     <span>Total</span>
@@ -2065,13 +2905,13 @@ function getStatusBadge($status) {
                         </div>
                     <?php break; ?>
 
-                    <?php case 'customers': ?>
+                    <?php case 'clients': ?>
                         <div class="glass-card overflow-hidden">
                             <div class="px-8 py-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <h4 class="font-bold text-slate-800">Customer Database <span class="text-slate-400 ml-1 font-medium">(<?= $totalCustomers ?>)</span></h4>
+                                <h4 class="font-bold text-slate-800">Client Database <span class="text-slate-400 ml-1 font-medium">(<?= $totalCustomers ?>)</span></h4>
                                 <form method="GET" class="relative">
-                                    <input type="hidden" name="page" value="customers">
-                                    <input type="text" name="search" placeholder="Search customers..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>" class="live-search pl-10 pr-4 py-2 bg-slate-50 border rounded-xl text-sm outline-none w-full sm:w-64">
+                                    <input type="hidden" name="page" value="clients">
+                                    <input type="text" name="search" placeholder="Search clients..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>" class="live-search pl-10 pr-4 py-2 bg-slate-50 border rounded-xl text-sm outline-none w-full sm:w-64">
                                     <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
                                 </form>
                             </div>
@@ -2080,7 +2920,7 @@ function getStatusBadge($status) {
                                     <table class="w-full text-left">
                                         <thead>
                                             <tr class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
-                                                <th class="px-8 py-4">Customer</th>
+                                                <th class="px-8 py-4">Client</th>
                                                 <th class="px-8 py-4">Contact Info</th>
                                                 <th class="px-8 py-4">Location</th>
                                                 <th class="px-8 py-4">Orders</th>
@@ -2118,7 +2958,7 @@ function getStatusBadge($status) {
                                                     <span class="px-2 py-1 bg-slate-100 rounded text-xs font-bold text-slate-600"><?= $cust['order_count'] ?> orders</span>
                                                 </td>
                                                 <td class="px-8 py-4 text-right">
-                                                    <form method="POST" onsubmit="return confirm('Delete customer <?= htmlspecialchars($cust['full_name'], ENT_QUOTES) ?>? Warning: This may delete all their orders too.')" class="inline">
+                                                    <form method="POST" onsubmit="return confirm('Delete client <?= htmlspecialchars($cust['full_name'], ENT_QUOTES) ?>? Warning: This may delete all their orders too.')" class="inline">
                                                         <input type="hidden" name="action" value="delete">
                                                         <input type="hidden" name="table" value="customers">
                                                         <input type="hidden" name="id" value="<?= $cust['id'] ?>">
@@ -2128,7 +2968,7 @@ function getStatusBadge($status) {
                                             </tr>
                                             <?php endforeach; ?>
                                             <?php if (empty($customers)): ?>
-                                                <tr><td colspan="5" class="text-center py-8 text-slate-400 font-medium">No customers found.</td></tr>
+                                                <tr><td colspan="5" class="text-center py-8 text-slate-400 font-medium">No clients found.</td></tr>
                                             <?php endif; ?>
                                         </tbody>
                                     </table>
@@ -2140,10 +2980,10 @@ function getStatusBadge($status) {
                                     <span class="text-xs font-bold text-slate-400">Page <?= $currentPage ?> of <?= $totalPages ?></span>
                                     <div class="flex space-x-2">
                                         <?php if ($currentPage > 1): ?>
-                                            <a href="?page=customers&p=<?= $currentPage - 1 ?>" class="px-3 py-1 bg-white border rounded-lg text-xs font-bold hover:bg-slate-50 transition">Prev</a>
+                                            <a href="?page=clients&p=<?= $currentPage - 1 ?>" class="px-3 py-1 bg-white border rounded-lg text-xs font-bold hover:bg-slate-50 transition">Prev</a>
                                         <?php endif; ?>
                                         <?php if ($currentPage < $totalPages): ?>
-                                            <a href="?page=customers&p=<?= $currentPage + 1 ?>" class="px-3 py-1 bg-white border rounded-lg text-xs font-bold hover:bg-slate-50 transition">Next</a>
+                                            <a href="?page=clients&p=<?= $currentPage + 1 ?>" class="px-3 py-1 bg-white border rounded-lg text-xs font-bold hover:bg-slate-50 transition">Next</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -2336,10 +3176,136 @@ function getStatusBadge($status) {
                     options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20, font: { weight: 'bold', size: 10 } } } } }
                 });
             }
+
+            // --- NEW ANALYTICS CHARTS ---
+
+            // Unique Visits Chart
+            const uniqueCtx = document.getElementById('uniqueVisitsChart');
+            if (uniqueCtx) {
+                new Chart(uniqueCtx, {
+                    type: 'line',
+                    data: {
+                        labels: <?= json_encode(array_keys($analyticsData['unique_visits_chart'])) ?>,
+                        datasets: [{
+                            data: <?= json_encode(array_values($analyticsData['unique_visits_chart'])) ?>,
+                            borderColor: '#10b981', // Emerald-500
+                            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#fff',
+                            pointBorderColor: '#10b981'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { borderDash: [5, 5], color: '#f1f5f9' }, ticks: { precision: 0 } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+            }
+
+            // Device Chart
+            const deviceCtx = document.getElementById('deviceChart');
+            if (deviceCtx) {
+                const deviceData = <?= json_encode($analyticsData['device_stats']) ?>;
+                new Chart(deviceCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: deviceData.map(d => d.device_type),
+                        datasets: [{
+                            data: deviceData.map(d => d.count),
+                            backgroundColor: ['#6366f1', '#ec4899', '#f59e0b', '#10b981'],
+                            borderWidth: 0,
+                            hoverOffset: 5
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true, font: {size: 10} } } } }
+                });
+            }
+
+            // OS Chart
+            const osCtx = document.getElementById('osChart');
+            if (osCtx) {
+                const osData = <?= json_encode($analyticsData['os_stats']) ?>;
+                new Chart(osCtx, {
+                    type: 'pie', // Pie for variety
+                    data: {
+                        labels: osData.map(d => d.os_name),
+                        datasets: [{
+                            data: osData.map(d => d.count),
+                            backgroundColor: ['#3b82f6', '#8b5cf6', '#a855f7', '#6366f1', '#0ea5e9'],
+                            borderWidth: 0,
+                            hoverOffset: 5
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, usePointStyle: true, font: {size: 10} } } } }
+                });
+            }
         });
     </script>
     <?php endif; ?>
 
+    <!-- Map Libs -->
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/js/jsvectormap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/maps/world.js"></script>
+
+    <script>
+        // --- MAP IMPLEMENTATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+             const mapEl = document.getElementById('world-map');
+             if (mapEl) {
+                 // Prepare Data
+                 const dbData = <?= json_encode($analyticsData['top_countries']) ?>;
+                 const mapData = {};
+                 
+                 // Fallback Mapping for existing data w/o country_code
+                 const nameToCode = {
+                    'Nigeria': 'NG', 'United States': 'US', 'United Kingdom': 'GB', 'Canada': 'CA', 'Ghana': 'GH', 
+                    'Germany': 'DE', 'France': 'FR', 'Australia': 'AU', 'India': 'IN', 'China': 'CN', 'Brazil': 'BR',
+                    'South Africa': 'ZA', 'Kenya': 'KE', 'Russia': 'RU', 'Japan': 'JP', 'Italy': 'IT', 'Spain': 'ES'
+                 };
+
+                 dbData.forEach(item => {
+                     let code = item.country_code;
+                     if (!code && item.country) {
+                         code = nameToCode[item.country] || null;
+                     }
+                     if (code) {
+                         mapData[code] = (mapData[code] || 0) + item.visitors;
+                     }
+                 });
+
+                 new jsVectorMap({
+                    selector: '#world-map',
+                    map: 'world',
+                    zoomButtons: true,
+                    zoomOnScroll: false,
+                    visualizeData: {
+                        scale: ['#e0e7ff', '#4f46e5'], // Indigo-50 to Indigo-600
+                        values: mapData
+                    },
+                    regionStyle: {
+                        initial: { fill: '#f1f5f9' },
+                        hover: { fill: '#6366f1' }
+                    },
+                    onRegionTooltipShow(event, tooltip, code) {
+                        const count = mapData[code] || 0;
+                        if (count > 0) {
+                            tooltip.text(
+                                `<h5 class="font-bold text-sm">${tooltip.text()}</h5>
+                                 <p class="text-xs">Visitors: ${count}</p>`
+                            , true); // true = enable HTML
+                        }
+                    }
+                });
+             }
+        });
     </script>
     <script>
         // --- LIVE SEARCH IMPLEMENTATION ---
@@ -2404,7 +3370,7 @@ function getStatusBadge($status) {
                     <h3 class="text-xl font-bold text-gray-900 mb-4" id="modal-title">Administrative Access</h3>
                     
                     <!-- Invite Section -->
-                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 mb-6">
+                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 mb-6" id="invite-section">
                         <h4 class="text-xs font-bold text-indigo-700 uppercase tracking-widest mb-2">Invite New Admin</h4>
                         <div class="flex gap-2">
                             <button id="generate-invite-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-700 transition">
@@ -2444,99 +3410,119 @@ function getStatusBadge($status) {
     </div>
 
     <script>
-        let currentUserId = 0;
+        let currentUserId = 0; // Explicitly declared
 
-        // Auto-run if on manage_admins page
+        // Auto-run if on management section
         document.addEventListener('DOMContentLoaded', () => {
-            const listContainer = document.getElementById('page-list-active');
-            if(listContainer) {
+            const listContainer = document.getElementById('list-active');
+            const mainTable = document.getElementById('main-admin-table-body');
+            
+            if(listContainer || mainTable) {
                 fetchAllAdminsPage();
             }
+
+            // Initialize Invite logic for both Modal and Main Page
+            setupInviteUI('generate-invite-btn', 'invite-link-output', 'copy-invite-btn');
+            setupInviteUI('main-generate-invite-btn', 'main-invite-link-output', 'main-copy-invite-btn');
         });
 
-        const generateBtn = document.getElementById('generate-invite-link-btn');
-        if(generateBtn) {
-            generateBtn.addEventListener('click', async () => {
-                const resultContainer = document.getElementById('invite-result-container');
-                try {
-                    const res = await fetch('/generate-invite', { method: 'POST' });
-                    const data = await res.json();
-                    if(data.success) {
-                        const linkInput = document.getElementById('invite-link-field');
-                        linkInput.value = data.link;
-                        resultContainer.classList.remove('hidden');
-                        document.getElementById('copy-link-btn').innerHTML = 'COPY';
-                    } else { alert('Error: ' + data.message); }
-                } catch(e) { alert('Failed to generate link.'); }
-            });
-        }
-
-        const copyBtn = document.getElementById('copy-link-btn');
-        if(copyBtn) {
-            copyBtn.addEventListener('click', () => {
-                const linkInput = document.getElementById('invite-link-field');
-                linkInput.select();
-                document.execCommand('copy');
-                copyBtn.innerHTML = 'COPIED!';
-                setTimeout(() => copyBtn.innerHTML = 'COPY', 2000);
-            });
-        }
+        const setupInviteUI = (genId, outId, copyId) => {
+            const btn = document.getElementById(genId);
+            const input = document.getElementById(outId);
+            const copy = document.getElementById(copyId);
+            
+            if(btn && input) {
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Generating...';
+                    try {
+                        const res = await fetch('generate-invite', { method: 'POST' });
+                        const data = await res.json();
+                        if(data.success) {
+                            input.value = data.link;
+                            if(copy) copy.classList.remove('hidden');
+                        } else { alert('Error: ' + data.message); }
+                    } catch(e) { alert('Failed to generate link.'); }
+                    btn.disabled = false;
+                    btn.innerHTML = (genId.includes('main')) ? '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Invitation' : '<i class="fa-solid fa-link mr-2"></i>Generate Link';
+                });
+            }
+            
+            if(copy && input) {
+                copy.addEventListener('click', () => {
+                    input.select();
+                    document.execCommand('copy');
+                    const originalText = copy.innerHTML;
+                    copy.innerHTML = 'COPIED!';
+                    setTimeout(() => copy.innerHTML = originalText, 2000);
+                });
+            }
+        };
 
         async function fetchAllAdminsPage() {
-            const listActive = document.getElementById('page-list-active');
-            const listPending = document.getElementById('page-list-pending');
-            const listSuspended = document.getElementById('page-list-suspended');
+            const listActive = document.getElementById('list-active');
+            const listPending = document.getElementById('list-pending');
+            const listSuspended = document.getElementById('list-suspended');
+            const mainTableBody = document.getElementById('main-admin-table-body');
             
-            listActive.innerHTML = listPending.innerHTML = listSuspended.innerHTML = '<p class="text-xs text-slate-400 italic text-center py-4">Loading...</p>';
+            // Show loading if any container exists
+            if(listActive) listActive.innerHTML = listPending.innerHTML = listSuspended.innerHTML = '<p class="text-xs text-slate-400 italic text-center py-4 text-center">Loading...</p>';
 
             try {
-                const res = await fetch('/admin-list-all');
+                const res = await fetch('admin-list-all');
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 const data = await res.json();
                 
                 if(data.success) {
-                    currentUserId = data.current_user_id;
-                    const users = data.users;
+                    currentUserId = data.current_user_id || 0;
+                    const users = data.users || [];
+                    const isLegacySession = data.is_legacy === true;
                     
-                    const renderUser = (u, type) => {
-                        const isSelf = (u.id == currentUserId);
+                    // --- MODAL RENDERING ---
+                    const renderUserModal = (u, type) => {
+                        if (!u || !u.username) return ''; 
+                        const isSelf = (u.id == currentUserId && u.source === (isLegacySession ? 'legacy' : 'role'));
                         let actions = '';
                         
                         if (!isSelf) {
                             if (type === 'active') {
                                 actions = `
                                     <div class="flex gap-2">
-                                        <button onclick="changeStatus(${u.id}, 'suspend')" class="text-amber-500 hover:text-amber-700 text-xs font-bold" title="Suspend"><i class="fa-solid fa-ban"></i></button>
-                                        <button onclick="deleteUser(${u.id})" class="text-rose-400 hover:text-rose-600 text-xs font-bold" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                        <button onclick="changeStatus(${u.id}, '${u.source}', 'suspend')" class="text-amber-500 hover:text-amber-700 text-xs font-bold" title="Suspend"><i class="fa-solid fa-ban"></i></button>
+                                        <button onclick="deleteUser(${u.id}, '${u.source}')" class="text-rose-400 hover:text-rose-600 text-xs font-bold" title="Delete"><i class="fa-solid fa-trash"></i></button>
                                     </div>`;
                             } else if (type === 'pending') {
                                 actions = `
                                     <div class="flex gap-2">
-                                        <button onclick="approveUser(${u.id})" class="text-emerald-500 hover:text-emerald-700 text-xs font-bold uppercase border border-emerald-200 bg-emerald-50 px-2 py-1 rounded">Approve</button>
-                                        <button onclick="deleteUser(${u.id})" class="text-rose-400 hover:text-rose-600 text-xs font-bold px-2 py-1"><i class="fa-solid fa-xmark"></i></button>
+                                        <button onclick="approveUser(${u.id}, '${u.source}')" class="text-emerald-500 hover:text-emerald-700 text-xs font-bold uppercase border border-emerald-200 bg-emerald-50 px-2 py-1 rounded">Approve</button>
+                                        <button onclick="deleteUser(${u.id}, '${u.source}')" class="text-rose-400 hover:text-rose-600 text-xs font-bold px-2 py-1"><i class="fa-solid fa-xmark"></i></button>
                                     </div>`;
                             } else if (type === 'suspended') {
                                 actions = `
                                     <div class="flex gap-2">
-                                        <button onclick="changeStatus(${u.id}, 'reactivate')" class="text-emerald-500 hover:text-emerald-700 text-xs font-bold uppercase">Reactivate</button>
-                                        <button onclick="deleteUser(${u.id})" class="text-rose-400 hover:text-rose-600 text-xs font-bold" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                        <button onclick="changeStatus(${u.id}, '${u.source}', 'reactivate')" class="text-emerald-500 hover:text-emerald-700 text-xs font-bold uppercase">Reactivate</button>
+                                        <button onclick="deleteUser(${u.id}, '${u.source}')" class="text-rose-400 hover:text-rose-600 text-xs font-bold" title="Delete"><i class="fa-solid fa-trash"></i></button>
                                     </div>`;
                             }
                         } else {
-                            actions = `<span class="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold">YOU</span>`;
+                            actions = `<div class="flex items-center"><span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md font-black tracking-tighter border border-indigo-100 uppercase">You</span></div>`;
                         }
 
+                        const initials = (u.username || 'U').substring(0,2).toUpperCase();
+                        const joinedDate = u.created_at ? new Date(u.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+
                         return `
-                        <div class="flex justify-between items-center py-4 px-2 hover:bg-slate-50 transition border-b border-dashed border-slate-100 last:border-0">
+                        <div class="flex justify-between items-center py-4 px-2 hover:bg-slate-50 transition border-b border-dashed border-slate-100 last:border-0 rounded-lg">
                             <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold">
-                                    ${u.username.substring(0,2).toUpperCase()}
+                                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-black shadow-sm">
+                                    ${initials}
                                 </div>
                                 <div>
                                     <p class="text-sm font-bold text-slate-700 leading-tight">${u.username}</p>
-                                    <p class="text-[10px] text-slate-400">Joined ${new Date(u.created_at).toLocaleDateString()}</p>
+                                    <p class="text-[10px] text-slate-400 font-medium">Member since ${joinedDate}</p>
                                 </div>
                             </div>
-                            ${actions}
+                            <div class="flex items-center">${actions}</div>
                         </div>`;
                     };
 
@@ -2544,33 +3530,74 @@ function getStatusBadge($status) {
                     const pending = users.filter(u => u.status === 'pending');
                     const suspended = users.filter(u => u.status === 'suspended');
 
-                    const badge = document.getElementById('page-pending-badge');
-                    if(badge) badge.classList.toggle('hidden', pending.length === 0);
+                    if(listActive) {
+                        listActive.innerHTML = active.length ? active.map(u => renderUserModal(u, 'active')).join('') : '<p class="text-xs text-slate-400 text-center py-4">No active admins.</p>';
+                        listPending.innerHTML = pending.length ? pending.map(u => renderUserModal(u, 'pending')).join('') : '<p class="text-xs text-slate-400 text-center py-4">No pending requests.</p>';
+                        listSuspended.innerHTML = suspended.length ? suspended.map(u => renderUserModal(u, 'suspended')).join('') : '<p class="text-xs text-slate-400 text-center py-4">No suspended accounts.</p>';
+                        const badge = document.getElementById('pending-badge');
+                        if(badge) badge.classList.toggle('hidden', pending.length === 0);
+                    }
 
-                    listActive.innerHTML = active.length ? active.map(u => renderUser(u, 'active')).join('') : '<p class="text-xs text-slate-400 text-center py-4">No active admins.</p>';
-                    listPending.innerHTML = pending.length ? pending.map(u => renderUser(u, 'pending')).join('') : '<p class="text-xs text-slate-400 text-center py-4">No pending requests.</p>';
-                    listSuspended.innerHTML = suspended.length ? suspended.map(u => renderUser(u, 'suspended')).join('') : '<p class="text-xs text-slate-400 text-center py-4">No suspended accounts.</p>';
+                    // --- MAIN TABLE RENDERING ---
+                    if(mainTableBody) {
+                        mainTableBody.innerHTML = users.map(u => {
+                            const isLegacyType = (u.source === 'legacy');
+                            const isSelf = (u.id == currentUserId && isLegacySession == isLegacyType);
+                            const joined = u.created_at ? new Date(u.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+                            
+                            let statusBadge = '';
+                            if(u.status === 'active') statusBadge = '<span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active</span>';
+                            else if(u.status === 'pending') statusBadge = '<span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pending</span>';
+                            else statusBadge = '<span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-rose-100 text-rose-700"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Suspended</span>';
 
-                } else {
-                    alert('Failed to load admins.');
+                            let actions = '';
+                            if(isSelf) {
+                                actions = '<span class="text-[9px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded">YOU</span>';
+                            } else {
+                                actions = `<div class="flex justify-end gap-2">`;
+                                if(u.status === 'pending') actions += `<button onclick="approveUser(${u.id}, '${u.source}')" class="text-emerald-500 hover:text-emerald-700 text-[10px] font-black uppercase">Approve</button>`;
+                                actions += `
+                                    <button onclick="changeStatus(${u.id}, '${u.source}', '${u.status === 'suspended' ? 'reactivate' : 'suspend'}')" class="${u.status === 'suspended' ? 'text-emerald-500' : 'text-amber-500'} hover:opacity-75 transition">
+                                        <i class="fa-solid ${u.status === 'suspended' ? 'fa-check' : 'fa-ban'}"></i>
+                                    </button>
+                                    <button onclick="deleteUser(${u.id}, '${u.source}')" class="text-rose-400 hover:text-rose-600 transition"><i class="fa-solid fa-trash"></i></button>
+                                </div>`;
+                            }
+
+                            return `
+                            <tr class="hover:bg-slate-50 transition">
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-[10px] font-black uppercase">${(u.username||'U').substring(0,2)}</div>
+                                        <div><p class="text-xs font-bold text-slate-700 leading-tight">${u.username}</p><p class="text-[10px] text-slate-400">Joined ${joined}</p></div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4"><span class="text-[10px] font-medium text-slate-500 italic">${isLegacyType ? 'Legacy DB' : 'Role-Based'}</span></td>
+                                <td class="px-6 py-4"><span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${(u.role || '').includes('super') ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}">${u.role || 'admin'}</span></td>
+                                <td class="px-6 py-4">${statusBadge}</td>
+                                <td class="px-6 py-4 text-right">${actions}</td>
+                            </tr>`;
+                        }).join('');
+                    }
+
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error('Fetch Error:', e); }
         }
 
-        async function approveUser(id) {
+        async function approveUser(id, source) {
             if(!confirm('Approve this user?')) return;
-            postAction('/admin-approve', { id });
+            postAction('admin-approve', { id, source });
         }
 
-        async function changeStatus(id, action) {
-            const endpoint = (action === 'suspend') ? '/admin-suspend' : '/admin-reactivate';
+        async function changeStatus(id, source, action) {
+            const endpoint = (action === 'suspend') ? 'admin-suspend' : 'admin-reactivate';
             if(!confirm(`Are you sure you want to ${action} this user?`)) return;
-            postAction(endpoint, { id });
+            postAction(endpoint, { id, source });
         }
 
-        async function deleteUser(id) {
+        async function deleteUser(id, source) {
             if(!confirm('Permanently delete this admin account? This cannot be undone.')) return;
-            postAction('/admin-delete', { id });
+            postAction('admin-delete', { id, source });
         }
 
         async function postAction(url, data) {

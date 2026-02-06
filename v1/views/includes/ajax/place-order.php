@@ -18,6 +18,11 @@ if (!$cartToken) {
 
 $input = json_decode(file_get_contents('php://input'), true);
 
+// DEBUG: Log received shipping data
+$debugFile = __DIR__ . '/order_debug.log';
+$debugData = date('Y-m-d H:i:s') . " | shippingId: " . ($input['shippingId'] ?? 'NULL') . " | discountCode: " . ($input['discountCode'] ?? 'NULL') . "\n";
+file_put_contents($debugFile, $debugData, FILE_APPEND);
+
 // --- 1. VALIDATE & SANITIZE CUSTOMER DATA ---
 // MODIFIED: This section is updated to handle the nested shippingAddress object and the new phone number.
 
@@ -115,16 +120,43 @@ if (!empty($input['shippingId'])) {
 }
 
 // Validate and apply discount
+$discountCode = null;
+$discountId = null;
+$discountError = null;
 if (!empty($input['discountCode'])) {
     $discountStmt = $conn->prepare("SELECT * FROM discounts WHERE code = ? AND is_active = TRUE AND (expiry_date IS NULL OR expiry_date >= CURDATE())");
     $discountStmt->execute([$input['discountCode']]);
     $discount = $discountStmt->fetch(PDO::FETCH_ASSOC);
-    if ($discount) {
-        if ($discount['discount_type'] == 'percentage') {
-            $discountAmount = ($subtotal * $discount['discount_value']) / 100;
+    
+    if (!$discount) {
+        $discountError = 'Invalid or expired discount code.';
+    } else {
+        // Check if this customer (by email) has already used this code
+        $usedStmt = $conn->prepare("SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.id WHERE c.email = ? AND o.discount_code = ?");
+        $usedStmt->execute([$email, $discount['code']]);
+        $alreadyUsed = $usedStmt->fetchColumn() > 0;
+        
+        if ($alreadyUsed) {
+            $discountError = 'You have already used this discount code.';
+        } elseif ($discount['max_uses'] > 0 && $discount['times_used'] >= $discount['max_uses']) {
+            $discountError = 'This discount code has reached its usage limit.';
+        } elseif ($discount['min_order_amount'] > 0 && $subtotal < $discount['min_order_amount']) {
+            $discountError = 'Minimum order of ₦' . number_format($discount['min_order_amount']) . ' required for this code.';
         } else {
-            $discountAmount = $discount['discount_value'];
+            // All checks passed - apply discount
+            if ($discount['discount_type'] == 'percentage') {
+                $discountAmount = ($subtotal * $discount['discount_value']) / 100;
+            } else {
+                $discountAmount = $discount['discount_value'];
+            }
+            $discountCode = $discount['code'];
+            $discountId = $discount['id'];
         }
+    }
+    
+    // If there's a discount error, return it to the user
+    if ($discountError) {
+        send_json_error($discountError);
     }
 }
 
@@ -150,11 +182,10 @@ try {
     // Create a unique order number
     $orderNumber = 'VN-' . time() . '-' . strtoupper(bin2hex(random_bytes(3)));
 
-    // Insert into orders table
-    $orderSql = "INSERT INTO orders (customer_id, order_number, subtotal, shipping_fee, discount_amount, grand_total, shipping_address, order_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')";
+    // Insert into orders table (now includes discount_code)
+    $orderSql = "INSERT INTO orders (customer_id, order_number, subtotal, shipping_fee, discount_amount, discount_code, grand_total, shipping_address, order_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
     $orderStmt = $conn->prepare($orderSql);
-    // The $shippingAddress variable below now contains the JSON with the phone number
-    $orderStmt->execute([$customerId, $orderNumber, $subtotal, $shippingFee, $discountAmount, $grandTotal, $shippingAddress]);
+    $orderStmt->execute([$customerId, $orderNumber, $subtotal, $shippingFee, $discountAmount, $discountCode, $grandTotal, $shippingAddress]);
     $orderId = $conn->lastInsertId();
 
     // Insert into order_items table
@@ -163,6 +194,11 @@ try {
     foreach ($cartItems as $item) {
         $unitPrice = $item['total_price'] / $item['quantity'];
         $orderItemsStmt->execute([$orderId, $item['product_id'], $item['quantity'], $unitPrice, $item['color_name'], $item['custom_color_name'], $item['size_name'], $item['custom_size_details']]);
+    }
+
+    // Increment times_used for the discount code
+    if ($discountId) {
+        $conn->prepare("UPDATE discounts SET times_used = times_used + 1 WHERE id = ?")->execute([$discountId]);
     }
 
     $conn->commit();

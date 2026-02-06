@@ -383,6 +383,21 @@ select.form-input-sleek { background-image: url("data:image/svg+xml,%3csvg xmlns
             </div>
 
              
+            <!-- Shipping Location Selection -->
+            <div class="space-y-4 mt-6 pt-6 border-t border-gray-200">
+                <h3 class="text-lg font-serif font-semibold text-brand-text">Shipping Zone</h3>
+                <div>
+                    <label for="shipping-location" class="block text-sm font-medium text-brand-gray mb-1">
+                        Delivery Location <span class="text-red-500">*</span>
+                    </label>
+                    <select id="shipping-location" name="shipping-location" class="form-input-sleek" required>
+                        <option value="">-- Select delivery location --</option>
+                    </select>
+                    <p id="shipping-location-notice" class="text-xs text-brand-gray mt-1 hidden">Shipping fee will be calculated based on your location.</p>
+                    <p id="no-shipping-notice" class="text-xs text-amber-600 mt-1 hidden">No shipping options available for this country. Please contact us for delivery options.</p>
+                </div>
+            </div>
+
             <!-- Shipping Instructions and Delivery Preferences -->
             <div class="space-y-4">
                 <h3 class="text-lg font-serif font-semibold text-brand-text">Delivery Preferences</h3>
@@ -524,6 +539,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const phoneInput = document.getElementById('phone-number');
     const phoneValidationMessage = document.getElementById('phone-validation-message');
     const phoneFormatExample = document.getElementById('phone-format-example');
+    const shippingLocationSelect = document.getElementById('shipping-location');
+    const shippingLocationNotice = document.getElementById('shipping-location-notice');
+    const noShippingNotice = document.getElementById('no-shipping-notice');
 
     // Function to format phone number with country prefix
     function formatPhoneNumber(phoneNumber, countryCode) {
@@ -624,10 +642,52 @@ document.addEventListener('DOMContentLoaded', () => {
         phoneValidationMessage.classList.add('hidden');
     }
 
+    // Function to update shipping locations based on country
+    function updateShippingLocations(countryCode) {
+        shippingLocationSelect.innerHTML = '<option value="">-- Select delivery location --</option>';
+        
+        const countryFees = COUNTRY_SHIPPING_FEES[countryCode];
+        
+        if (countryFees && countryFees.length > 0) {
+            // Has shipping options for this country
+            shippingLocationNotice.classList.remove('hidden');
+            noShippingNotice.classList.add('hidden');
+            shippingLocationSelect.disabled = false;
+            shippingLocationSelect.required = true;
+            
+            countryFees.forEach(fee => {
+                const option = document.createElement('option');
+                option.value = fee.id;
+                option.dataset.fee = fee.fee;
+                option.textContent = `${fee.location_name} - ₦${parseFloat(fee.fee).toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+                shippingLocationSelect.appendChild(option);
+            });
+            
+            // Auto-select the first option immediately
+            shippingLocationSelect.value = countryFees[0].id;
+            shippingLocationSelect.dispatchEvent(new Event('change'));
+        } else {
+            // No shipping options for this country - reset shipping fee
+            shippingLocationNotice.classList.add('hidden');
+            noShippingNotice.classList.remove('hidden');
+            shippingLocationSelect.disabled = true;
+            shippingLocationSelect.required = false;
+            shippingLocationSelect.value = ''; // Clear selection
+            
+            // Reset shipping fee to 0 and update summary
+            shippingFee = 0;
+            if (typeof updateOrderSummary === 'function') {
+                updateOrderSummary();
+            }
+            console.log('No shipping options for this country, shipping fee reset to 0');
+        }
+    }
+
     // --- CURRENCY LOGIC ---
     const USD_RATE_TO_NGN = <?= USD_EXCHANGE_RATE ?>;
     const COUNTRY_CURRENCY_MAP = <?= $jsCountryCurrencyMap ?>;
     const PHONE_VALIDATION_RULES = <?= $jsPhoneValidationRules ?>;
+    const COUNTRY_SHIPPING_FEES = <?= $jsCountryShippingFees ?>;
     let activeCurrency = '<?= $jsCurrentCurrency ?>';
     // Initial rate: 1.0 if base currency is USD, or USD_RATE_TO_NGN if base is NGN (or the rate for any other currency from a cookie)
     let activeExchangeRate = (activeCurrency === 'USD') ? 1.0 : USD_RATE_TO_NGN; 
@@ -922,6 +982,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updatePhoneField(newCountry);
 
+        // 2.5. Update shipping locations based on country
+        updateShippingLocations(newCountry);
+
         // 3. Determine and switch currency
         const selectedCountryCode = e.target.value;
         const newCurrency = COUNTRY_CURRENCY_MAP[selectedCountryCode] || 'USD'; 
@@ -1029,6 +1092,45 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAllPrices(activeCurrency);
     };
 
+    // Shipping location change listener (after updateOrderSummary is defined)
+    shippingLocationSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption && selectedOption.dataset.fee) {
+            shippingFee = parseFloat(selectedOption.dataset.fee);
+        } else {
+            shippingFee = 0;
+        }
+        
+        // Immediately update the shipping display with animation
+        const shippingEl = selectors.summaryShipping;
+        shippingEl.style.transition = 'all 0.3s ease';
+        shippingEl.style.transform = 'scale(1.1)';
+        shippingEl.style.color = '#10b981';
+        
+        // Direct DOM update for immediate feedback
+        selectors.summaryShipping.dataset.priceNgn = shippingFee;
+        
+        // Calculate and update total immediately
+        const grandTotal = (cartSubtotal - discountAmount) + shippingFee;
+        selectors.summaryTotal.dataset.priceNgn = grandTotal > 0 ? grandTotal : 0;
+        
+        // Update prices with current currency
+        updateAllPrices(activeCurrency);
+        
+        // Reset animation after delay
+        setTimeout(() => {
+            shippingEl.style.transform = 'scale(1)';
+            shippingEl.style.color = '';
+        }, 300);
+        
+        console.log('Shipping fee updated:', shippingFee);
+    });
+    
+    // Force initial shipping update if already selected
+    if (shippingLocationSelect.value) {
+        shippingLocationSelect.dispatchEvent(new Event('change'));
+    }
+
     // Apply Discount Function
     selectors.applyDiscountBtn.addEventListener('click', async () => {
         const code = selectors.discountCodeInput.value.trim();
@@ -1117,8 +1219,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 deliveryInstructions: document.getElementById('delivery-instructions').value,
                 deliveryTimePreference: document.getElementById('delivery-time-preference').value
             },
+            shippingId: shippingLocationSelect.value || null,
             discountCode: selectors.discountCodeInput.value.trim() || null
         };
+
+        // Debug logging for shipping
+        console.log('=== ORDER SUBMISSION DEBUG ===');
+        console.log('Shipping Location Select Value:', shippingLocationSelect.value);
+        console.log('Shipping Location Disabled:', shippingLocationSelect.disabled);
+        console.log('formData.shippingId:', formData.shippingId);
+        console.log('Current shippingFee variable:', shippingFee);
+        console.log('Full formData:', formData);
 
         try {
             // The server-side 'place-order' should validate and create the order using NGN price
@@ -1206,14 +1317,29 @@ document.addEventListener('DOMContentLoaded', () => {
         
         message += `*Address:* ${addressLine}\n`;
         
-        // if (countrySelect.value === 'NG' && shippingLocationSelect.value) {
-        //     message += `*Shipping Location (NG):* ${shippingLocationName}\n`;
-        // }
+        // Include shipping location if selected
+        if (shippingLocationSelect.value) {
+            const selectedShipping = shippingLocationSelect.options[shippingLocationSelect.selectedIndex].text;
+            message += `*Shipping Zone:* ${selectedShipping}\n`;
+        }
         
         if (deliveryInstructions) {
             message += `*Delivery Instructions:* ${deliveryInstructions}\n`;
         }
 
+        // Add order breakdown with shipping
+        const subtotalText = document.getElementById('summary-subtotal').textContent;
+        const shippingText = document.getElementById('summary-shipping').textContent;
+        const discountText = document.getElementById('summary-discount').textContent;
+        
+        message += `\n--- *ORDER SUMMARY* ---\n`;
+        message += `*Subtotal:* ${subtotalText}\n`;
+        if (shippingFee > 0) {
+            message += `*Shipping:* ${shippingText}\n`;
+        }
+        if (discountAmount > 0) {
+            message += `*Discount:* ${discountText}\n`;
+        }
         message += `*Grand Total:* ${total}\n` +
                    `*(In ${activeCurrency})*\n\n` +
                    `--- *ORDER DETAILS* ---\n`;

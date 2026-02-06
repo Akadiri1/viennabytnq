@@ -162,8 +162,14 @@ $shippingDetails = json_decode($order['shipping_address'], true);
             <div class="w-64 space-y-3">
                 <div class="flex justify-between text-gray-600">
                     <span>Subtotal</span>
-                    <span>₦<?= number_format($order['order_total_amount'], 2) // Assuming this is subtotal ?></span>
+                    <span>₦<?= number_format($order['subtotal'], 2) ?></span>
                 </div>
+                <?php if ($order['discount_amount'] > 0): ?>
+                <div class="flex justify-between text-green-600">
+                    <span>Discount<?php if (!empty($order['discount_code'])): ?> <span class="text-xs bg-green-100 px-1.5 py-0.5 rounded font-bold"><?= htmlspecialchars($order['discount_code']) ?></span><?php endif; ?></span>
+                    <span>-₦<?= number_format($order['discount_amount'], 2) ?></span>
+                </div>
+                <?php endif; ?>
                 <div class="flex justify-between text-gray-600">
                     <span>Shipping</span>
                     <span>₦<?= number_format($order['shipping_fee'], 2) ?></span>

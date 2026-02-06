@@ -1,11 +1,17 @@
 <?php
 header('Content-Type: application/json');
 
-// Security Check: Ensure main admin is logged in
-if (!isset($_SESSION['admin_logged_in'])) {
+// Security Check: Enable bridge for both Legacy Admins and Role-Based Admins
+$isLegacy = isset($_SESSION['admin_logged_in']);
+$isRoleBased = isset($_SESSION['role']) && ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'super_admin');
+
+if (!$isLegacy && !$isRoleBased) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
+
+// Normalize ID for API operations
+$currentApiUserId = $_SESSION['admin_user_id'] ?? $_SESSION['user_id'] ?? 0;
 
 // Ensure table exists (Self-healing for existing sessions)
 try {
@@ -71,21 +77,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'list_pending') {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'approve_admin') {
-    $id = $_POST['id'] ?? 0;
-    if ($id) {
-        try {
-            $stmt = $conn->prepare("UPDATE admin_users SET status = 'active' WHERE id = ?");
-            $stmt->execute([$id]);
-            echo json_encode(['success' => true]);
-        } catch (Exception $e) {
-            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-        }
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Invalid ID']);
-    }
-    exit;
-}
 // --- NEW ACTIONS ---
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'check_session') {
@@ -95,42 +86,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'check_session') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'list_all_admins') {
     try {
-        $stmt = $conn->query("SELECT id, username, status, created_at FROM admin_users ORDER BY created_at DESC");
+        $sql = "
+            SELECT id, username, status, created_at, 'legacy' as source, role FROM admin_users
+            UNION ALL
+            SELECT id, full_name as username, status, created_at, 'role' as source, role FROM users 
+            WHERE role IN ('admin', 'super_admin')
+            ORDER BY created_at DESC
+        ";
+        $stmt = $conn->query($sql);
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['success' => true, 'users' => $users, 'current_user_id' => $_SESSION['admin_user_id'] ?? 0]);
+        echo json_encode([
+            'success' => true, 
+            'users' => $users, 
+            'current_user_id' => $currentApiUserId,
+            'is_legacy' => $isLegacy
+        ]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete_admin') {
+// Helper function to get table name from source
+function getTableName($source) {
+    return ($source === 'role') ? 'users' : 'admin_users';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'approve_admin') {
     $id = $_POST['id'] ?? 0;
-    if ($id == $_SESSION['admin_user_id']) {
-        echo json_encode(['success' => false, 'message' => 'You cannot delete your own account.']);
-        exit;
-    }
-    try {
-        $conn->prepare("DELETE FROM admin_users WHERE id = ?")->execute([$id]);
+    $source = $_POST['source'] ?? 'legacy';
+    $table = getTableName($source);
+    
+    $stmt = $conn->prepare("UPDATE $table SET status = 'active' WHERE id = ?");
+    if ($stmt->execute([$id])) {
         echo json_encode(['success' => true]);
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to approve.']);
     }
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($action === 'suspend_admin' || $action === 'reactivate_admin')) {
     $id = $_POST['id'] ?? 0;
-    if ($id == $_SESSION['admin_user_id']) {
+    $source = $_POST['source'] ?? 'legacy';
+    $table = getTableName($source);
+    
+    if ($id == $currentApiUserId && $isLegacy == ($source === 'legacy')) {
         echo json_encode(['success' => false, 'message' => 'You cannot change your own status.']);
         exit;
     }
+
+    // Protect Super Admins from suspension
+    $check = $conn->prepare("SELECT role FROM $table WHERE id = ?");
+    $check->execute([$id]);
+    $targetRole = $check->fetchColumn();
+    if (strpos($targetRole, 'super') !== false) {
+         echo json_encode(['success' => false, 'message' => 'Action Denied: Cannot suspend a Super Admin.']);
+         exit;
+    }
+
     $newStatus = ($action === 'suspend_admin') ? 'suspended' : 'active';
-    try {
-        $conn->prepare("UPDATE admin_users SET status = ? WHERE id = ?")->execute([$newStatus, $id]);
+    $stmt = $conn->prepare("UPDATE $table SET status = ? WHERE id = ?");
+    if ($stmt->execute([$newStatus, $id])) {
         echo json_encode(['success' => true]);
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to update status.']);
     }
     exit;
 }
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete_admin') {
+    $id = $_POST['id'] ?? 0;
+    $source = $_POST['source'] ?? 'legacy';
+    $table = getTableName($source);
+
+    if ($id == $currentApiUserId && $isLegacy == ($source === 'legacy')) {
+        echo json_encode(['success' => false, 'message' => 'You cannot delete your own account.']);
+        exit;
+    }
+    
+    // Protect Super Admins from deletion
+    $check = $conn->prepare("SELECT role FROM $table WHERE id = ?");
+    $check->execute([$id]);
+    $targetRole = $check->fetchColumn();
+    if (strpos($targetRole, 'super') !== false) {
+         echo json_encode(['success' => false, 'message' => 'Action Denied: Cannot delete a Super Admin.']);
+         exit;
+    }
+
+    $stmt = $conn->prepare("DELETE FROM $table WHERE id = ?");
+    if ($stmt->execute([$id])) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to delete.']);
+    }
+    exit;
+}
+?>

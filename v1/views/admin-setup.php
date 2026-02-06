@@ -35,9 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check->fetch()) {
             $error = "Username already taken.";
         } else {
-            // Create pending user
+            // Create pending user with 'admin' role (NOT super_admin)
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("INSERT INTO admin_users (username, password_hash, status) VALUES (?, ?, 'pending')");
+            $stmt = $conn->prepare("INSERT INTO admin_users (username, password_hash, status, role) VALUES (?, ?, 'pending', 'admin')");
             if ($stmt->execute([$username, $hash])) {
                 // Delete invite
                 $conn->prepare("DELETE FROM admin_invites WHERE id = ?")->execute([$invite['id']]);
