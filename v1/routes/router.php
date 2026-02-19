@@ -118,6 +118,10 @@ if (count($uri) > 2) {
     include APP_PATH."/views/includes/ajax/fetch-collection.php";
     break;
 
+     case 'img-resize?'.$query_string:
+    include APP_PATH."/views/includes/ajax/img-resize.php";
+    break;
+
     case 'shop?collection='.$query_string:
     include APP_PATH."/views/shop.php";
     break;

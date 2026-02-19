@@ -21,42 +21,94 @@ try {
     // Filter Params
     $search = isset($_GET['search']) ? trim($_GET['search']) : '';
     $sort = isset($_GET['sort']) ? $_GET['sort'] : 'featured';
+    $minPrice = isset($_GET['min_price']) ? (float)$_GET['min_price'] : null;
+    $maxPrice = isset($_GET['max_price']) ? (float)$_GET['max_price'] : null;
 
-    // Build Query
-    $where = "WHERE LOWER(visibility) = 'show'";
+    // Build Query with variant aggregation
+    $select = "SELECT p.*, 
+        (SELECT MIN(price) FROM product_price_variants WHERE product_id = p.id AND price > 0) as min_variant_price,
+        (SELECT MAX(price) FROM product_price_variants WHERE product_id = p.id) as max_variant_price,
+        (SELECT COUNT(*) FROM product_price_variants WHERE product_id = p.id) as variant_count,
+        COALESCE(
+            (SELECT MIN(price) FROM product_price_variants WHERE product_id = p.id AND price > 0),
+            NULLIF(p.price, 0)
+        ) as effective_price";
+
+    $from = " FROM panel_products p";
+    $where = " WHERE LOWER(p.visibility) = 'show'";
     $params = [];
     
     if ($collectionId !== 'all' && filter_var($collectionId, FILTER_VALIDATE_INT)) {
-        $where .= " AND collection_id = ?";
+        $where .= " AND p.collection_id = ?";
         $params[] = (int)$collectionId;
     }
     
     if ($search !== '') {
-        $where .= " AND name LIKE ?";
+        $where .= " AND p.name LIKE ?";
         $params[] = "%$search%";
     }
 
-    $order = "ORDER BY id DESC";
-    if ($sort === 'price-asc') $order = "ORDER BY price ASC";
-    if ($sort === 'price-desc') $order = "ORDER BY price DESC";
+    // Price range filter — filter by variant price if variants exist, else base price
+    if ($minPrice !== null || $maxPrice !== null) {
+        $priceConditions = [];
+        
+        if ($minPrice !== null && $maxPrice !== null) {
+            // Product matches if:
+            // 1) It has variants and at least one variant price is within range, OR
+            // 2) It has no variants and its base price is within range
+            $where .= " AND (
+                (EXISTS (SELECT 1 FROM product_price_variants ppv WHERE ppv.product_id = p.id AND ppv.price >= ? AND ppv.price <= ?))
+                OR
+                (NOT EXISTS (SELECT 1 FROM product_price_variants ppv2 WHERE ppv2.product_id = p.id) AND p.price >= ? AND p.price <= ?)
+            )";
+            $params[] = $minPrice;
+            $params[] = $maxPrice;
+            $params[] = $minPrice;
+            $params[] = $maxPrice;
+        } elseif ($minPrice !== null) {
+            $where .= " AND (
+                (EXISTS (SELECT 1 FROM product_price_variants ppv WHERE ppv.product_id = p.id AND ppv.price >= ?))
+                OR
+                (NOT EXISTS (SELECT 1 FROM product_price_variants ppv2 WHERE ppv2.product_id = p.id) AND p.price >= ?)
+            )";
+            $params[] = $minPrice;
+            $params[] = $minPrice;
+        } elseif ($maxPrice !== null) {
+            $where .= " AND (
+                (EXISTS (SELECT 1 FROM product_price_variants ppv WHERE ppv.product_id = p.id AND ppv.price <= ?))
+                OR
+                (NOT EXISTS (SELECT 1 FROM product_price_variants ppv2 WHERE ppv2.product_id = p.id) AND p.price <= ?)
+            )";
+            $params[] = $maxPrice;
+            $params[] = $maxPrice;
+        }
+    }
 
-    // === QUERY 1: Get initial list of products ===
-    // Use raw query for flexibility with search/sort
-    $sql = "SELECT * FROM panel_products $where $order LIMIT $limit OFFSET $offset";
+    // Sort — use effective_price (variant-aware) for price sorting
+    $order = " ORDER BY p.id DESC";
+    if ($sort === 'price-asc') $order = " ORDER BY effective_price ASC, p.id DESC";
+    if ($sort === 'price-desc') $order = " ORDER BY effective_price DESC, p.id DESC";
+
+    // === COUNT QUERY (for total_count) ===
+    $countSql = "SELECT COUNT(*) as total" . $from . $where;
+    $countStmt = $conn->prepare($countSql);
+    $countStmt->execute($params);
+    $totalCount = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    // === MAIN QUERY ===
+    $sql = $select . $from . $where . $order . " LIMIT $limit OFFSET $offset";
     $stmt = $conn->prepare($sql);
     $stmt->execute($params);
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // If no products are found, return an empty array immediately. This is valid JSON.
+    // If no products are found, return empty with count
     if (empty($products)) {
-        echo json_encode([]);
+        echo json_encode(['products' => [], 'total_count' => $totalCount]);
         exit;
     }
 
     // Get all product IDs from the results for our IN() clauses
     $productIds = array_column($products, 'id');
-    
-    // Create a string of placeholders for the IN clause (?, ?, ?, ...)
     $placeholders = implode(',', array_fill(0, count($productIds), '?'));
 
     // Prepare arrays to hold all details, organized by product_id
@@ -69,7 +121,6 @@ try {
     $colorStmt = $conn->prepare($colorSql);
     $colorStmt->execute($productIds);
     $colorResults = $colorStmt->fetchAll(PDO::FETCH_ASSOC);
-    // Re-organize the data for easy lookup
     foreach ($colorResults as $row) {
         $allColors[$row['product_id']][] = $row['hex_code'];
     }
@@ -79,7 +130,6 @@ try {
     $sizeStmt = $conn->prepare($sizeSql);
     $sizeStmt->execute($productIds);
     $sizeResults = $sizeStmt->fetchAll(PDO::FETCH_ASSOC);
-    // Re-organize the data
     foreach ($sizeResults as $row) {
         $allSizes[$row['product_id']][] = $row['name'];
     }
@@ -89,23 +139,26 @@ try {
     $variantStmt = $conn->prepare($variantSql);
     $variantStmt->execute($productIds);
     $variantResults = $variantStmt->fetchAll(PDO::FETCH_ASSOC);
-    // Re-organize the data
     foreach ($variantResults as $row) {
         $allVariants[$row['product_id']][] = $row;
     }
 
-    // --- 4. ASSEMBLE THE FINAL RESPONSE ---
-    // Now, loop through the products and add the pre-fetched details. This is very fast.
+    // --- ASSEMBLE THE FINAL RESPONSE ---
     $response_data = [];
     foreach ($products as $product) {
         $productId = $product['id'];
         $variants = $allVariants[$productId] ?? [];
         
         // Determine the display price (lowest variant or base price)
-        $displayPrice = !empty($variants) ? $variants[0]['price'] : $product['price'];
+        if (!empty($variants)) {
+            $variantPrices = array_column($variants, 'price');
+            $minVPrice = min($variantPrices);
+            $displayPrice = ($minVPrice > 0) ? $minVPrice : $product['price'];
+        } else {
+            $displayPrice = $product['price'];
+        }
 
         // Determine effective stock
-        // If variants exist, stock is the sum of all variant stocks. Otherwise, use main product stock.
         if (!empty($variants)) {
             $effectiveStock = 0;
             foreach ($variants as $v) {
@@ -122,27 +175,25 @@ try {
             'image_one' => $product['image_one'],
             'image_two' => $product['image_two'],
             'price' => $product['price'],
-            'stock_quantity' => $effectiveStock, // Use calculated stock
-            'colors' => $allColors[$productId] ?? [], // Use pre-fetched data
-            'sizes' => $allSizes[$productId] ?? [], // Use pre-fetched data
-            'price_variants' => $variants, // Use pre-fetched data
+            'stock_quantity' => $effectiveStock,
+            'colors' => $allColors[$productId] ?? [],
+            'sizes' => $allSizes[$productId] ?? [],
+            'price_variants' => $variants,
             'display_price' => $displayPrice
         ];
     }
 
-    // --- 5. OUTPUT THE FINAL JSON ---
-    echo json_encode($response_data);
+    // --- OUTPUT THE FINAL JSON (new format with total_count) ---
+    echo json_encode([
+        'products' => $response_data,
+        'total_count' => $totalCount
+    ]);
 
 } catch (PDOException $e) {
-    // Catch database-specific errors
-    http_response_code(500); // Internal Server Error
-    // In production, you should log this error instead of echoing it
-    // error_log("Database Error: " . $e->getMessage());
+    http_response_code(500);
     echo json_encode(['error' => 'A database error occurred.']);
 } catch (Exception $e) {
-    // Catch any other general errors
     http_response_code(500);
-    // error_log("General Error: " . $e->getMessage());
     echo json_encode(['error' => 'An unexpected error occurred.']);
 }
 ?>

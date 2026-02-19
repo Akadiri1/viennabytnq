@@ -218,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $vStock = filter_input(INPUT_POST, 'variant_stock', FILTER_VALIDATE_INT);
         $isAjax = isset($_POST['ajax']);
 
-        if ($pid && !empty($vName) && $vStock > 0) {
+        if ($pid && $vStock > 0) {
             $conn->prepare("INSERT INTO product_price_variants (product_id, variant_name, price, stock_quantity) VALUES (?, ?, ?, ?)")
                     ->execute([$pid, $vName, $vPrice, $vStock]);
             $newId = $conn->lastInsertId();
@@ -317,9 +317,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmtVariant = $conn->prepare("INSERT INTO product_price_variants (product_id, variant_name, price, stock_quantity) VALUES (?, ?, ?, ?)");
             foreach ($_POST['variants_name'] as $index => $vName) {
                 $vName = trim($vName);
-                if (!empty($vName)) {
-                    $vPrice = !empty($_POST['variants_price'][$index]) ? $_POST['variants_price'][$index] : ($price ?: 0.00);
-                    $vStock = !empty($_POST['variants_stock'][$index]) ? $_POST['variants_stock'][$index] : 0;
+                $vPrice = isset($_POST['variants_price'][$index]) ? trim($_POST['variants_price'][$index]) : '';
+                $vStock = isset($_POST['variants_stock'][$index]) ? trim($_POST['variants_stock'][$index]) : '';
+                // Save variant if it has at least a price or stock (name is optional)
+                if ($vPrice !== '' || $vStock !== '') {
+                    $vPrice = !empty($vPrice) ? $vPrice : ($price ?: 0.00);
+                    $vStock = !empty($vStock) ? $vStock : 0;
                     $stmtVariant->execute([$productId, $vName, $vPrice, $vStock]);
                 }
             }
@@ -1072,9 +1075,10 @@ function getStatusBadge($status) {
                                     <div class="flex items-center gap-2">
                                         <h4 class="font-bold text-slate-800">Sales Growth</h4>
                                         <?php 
-                                        if (count($analyticsOrders) >= 2) {
-                                            $lastMonth = end($analyticsOrders)['total'];
-                                            $prevMonth = prev($analyticsOrders)['total'];
+                                        $revenueValues = array_values($monthlyRevenue);
+                                        if (count($revenueValues) >= 2) {
+                                            $lastMonth = end($revenueValues);
+                                            $prevMonth = prev($revenueValues);
                                             if ($prevMonth > 0) {
                                                 $growth = (($lastMonth - $prevMonth) / $prevMonth) * 100;
                                                 $isPositive = $growth >= 0;
@@ -1532,18 +1536,15 @@ function getStatusBadge($status) {
                                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Description</label>
                                                 <textarea name="product_text" rows="3" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 transition" placeholder="Tell customers about this product..."><?= htmlspecialchars($productToEdit['product_text'] ?? '') ?></textarea>
                                             </div>
-                                            <!-- Price & Stock Row -->
-                                            <div class="grid grid-cols-2 gap-4">
+                                            <!-- Price & Stock are now managed through Variants -->
+                                            <!-- <div class="grid grid-cols-2 gap-4">
                                                 <div>
                                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Base Price (₦)</label>
                                                     <input type="number" name="price" value="<?= $productToEdit['price'] ?? '' ?>" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-bold text-slate-700" placeholder="0.00">
                                                 </div>
-                                                <!-- <div>
-                                                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Stock</label>
-                                                    <input type="number" name="stock_quantity" value="<?= $productToEdit['stock_quantity'] ?? '0' ?>" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-bold text-slate-700">
-                                                </div> -->
-                                                <input type="hidden" name="stock_quantity" value="<?= $productToEdit['stock_quantity'] ?? '0' ?>">
-                                            </div>
+                                            </div> -->
+                                            <input type="hidden" name="price" value="<?= $productToEdit['price'] ?? '0' ?>">
+                                            <input type="hidden" name="stock_quantity" value="<?= $productToEdit['stock_quantity'] ?? '0' ?>">
                                         </div>
                                     </div>
 
@@ -1590,7 +1591,7 @@ function getStatusBadge($status) {
                                                     <span class="text-xs font-bold text-slate-500">Add Gallery Images</span>
                                                     <span class="text-[9px] text-slate-400 mt-1">Select multiple files</span>
                                                 </div>
-                                                <input type="file" name="gallery_images[]" id="gery_images" class="hidden" multiple onchange="handleGallerySelect(this)">
+                                                <input type="file" name="gallery_images[]" id="gallery_images" class="hidden" multiple onchange="handleGallerySelect(this)">
                                             </div>
                                         </div>
 
@@ -1777,9 +1778,7 @@ function getStatusBadge($status) {
                                                 <div id="variants-container" class="space-y-3">
                                                     <?php 
                                                     $existingVariants = $productToEdit['variants'] ?? [];
-                                                    if (empty($existingVariants)) {
-                                                        $existingVariants = [['variant_name' => '', 'price' => '', 'stock_quantity' => '']];
-                                                    }
+                                                    // Don't default to an empty row — variants are optional
                                                     foreach ($existingVariants as $variant): 
                                                     ?>
                                                     <div class="flex items-center gap-3 group">
@@ -1833,78 +1832,43 @@ function getStatusBadge($status) {
                                                                 let isValid = true;
                                                                 let firstError = null;
 
-                                                                // Select all variant inputs
+                                                                // Select all variant rows
                                                                 const variantNames = document.querySelectorAll('input[name="variants_name[]"]');
                                                                 const variantPrices = document.querySelectorAll('input[name="variants_price[]"]');
                                                                 const variantStocks = document.querySelectorAll('input[name="variants_stock[]"]');
 
-                                                                // Check if at least one variant exists (OPTIONAL NOW)
-                                                                // if (variantNames.length === 0) {
-                                                                //    alert('Please add at least one product variant (e.g. Size/Color option).');
-                                                                //    e.preventDefault();
-                                                                //    return;
-                                                                // }
-
-                                                                // Helper to validate group
-                                                                const validateGroup = (inputs) => {
-                                                                    inputs.forEach(input => {
-                                                                        if(!input.value.trim()) {
-                                                                            isValid = false;
-                                                                            input.classList.add('border-rose-500', 'animate-shake');
-                                                                            if(!firstError) firstError = input;
-                                                                            
-                                                                            // Add error message if not exists
-                                                                            let errorMsg = input.parentNode.querySelector('.variant-error-msg');
-                                                                            if (!errorMsg) {
-                                                                                errorMsg = document.createElement('p');
-                                                                                errorMsg.className = 'variant-error-msg text-[10px] text-rose-500 font-bold mt-1 animate-pulse';
-                                                                                errorMsg.innerText = 'Required';
-                                                                                input.parentNode.appendChild(errorMsg);
-                                                                            }
-                                                                            
-                                                                            // Remove shake after animation (keep border)
-                                                                            setTimeout(() => {
-                                                                                input.classList.remove('animate-shake');
-                                                                            }, 400);
-
-                                                                            // Remove error on input
-                                                                            input.addEventListener('input', function() {
-                                                                                this.classList.remove('border-rose-500');
-                                                                                const msg = this.parentNode.querySelector('.variant-error-msg');
-                                                                                if(msg) msg.remove();
-                                                                            }, {once: true});
-                                                                        }
-                                                                    });
-                                                                };
-
-                                                                validateGroup(variantNames);
-                                                                validateGroup(variantPrices);
-                                                                validateGroup(variantPrices);
-                                                                validateGroup(variantNames);
-                                                                validateGroup(variantPrices);
-                                                                // Custom validation for Stock to ensure > 0
-                                                                variantStocks.forEach(input => {
-                                                                    if (!input.value.trim() || parseInt(input.value) < 1) {
+                                                                // Variants are OPTIONAL — only validate rows where the user started filling in data
+                                                                if (variantNames.length > 0) {
+                                                                    const markError = (input, msg) => {
                                                                         isValid = false;
                                                                         input.classList.add('border-rose-500', 'animate-shake');
                                                                         if(!firstError) firstError = input;
-                                                                        
-                                                                        let errorMsg = input.parentNode.querySelector('.variant-error-msg');
-                                                                        if (!errorMsg) {
-                                                                            errorMsg = document.createElement('p');
-                                                                            errorMsg.className = 'variant-error-msg text-[10px] text-rose-500 font-bold mt-1 animate-pulse';
-                                                                            input.parentNode.appendChild(errorMsg);
+                                                                        let errorEl = input.parentNode.querySelector('.variant-error-msg');
+                                                                        if (!errorEl) {
+                                                                            errorEl = document.createElement('p');
+                                                                            errorEl.className = 'variant-error-msg text-[10px] text-rose-500 font-bold mt-1 animate-pulse';
+                                                                            input.parentNode.appendChild(errorEl);
                                                                         }
-                                                                        errorMsg.innerText = !input.value.trim() ? 'Required' : 'Must be > 0';
-
+                                                                        errorEl.innerText = msg;
                                                                         setTimeout(() => input.classList.remove('animate-shake'), 400);
                                                                         input.addEventListener('input', function() {
                                                                             this.classList.remove('border-rose-500');
-                                                                            const msg = this.parentNode.querySelector('.variant-error-msg');
-                                                                            if(msg) msg.remove();
+                                                                            const m = this.parentNode.querySelector('.variant-error-msg');
+                                                                            if(m) m.remove();
                                                                         }, {once: true});
-                                                                    }
-                                                                });
+                                                                    };
+
+                                                                    variantNames.forEach((nameInput, i) => {
+                                                                        const name = nameInput.value.trim();
+                                                                        const price = variantPrices[i]?.value.trim();
+                                                                        const stock = variantStocks[i]?.value.trim();
+                                                                        // Skip fully empty rows (user left a blank row)
+                                                                        if (!name && !price && !stock) return;
+                                                                        // Row has data — only price and stock are required, name is optional
+                                                                        if (!price) markError(variantPrices[i], 'Required');
+                                                                        if (!stock || parseInt(stock) < 1) markError(variantStocks[i], !stock ? 'Required' : 'Must be > 0');
+                                                                    });
+                                                                }
 
                                                                 // Validate Collection
                                                                 const collectionSelect = document.querySelector('select[name="collection_id"]');
@@ -1934,7 +1898,19 @@ function getStatusBadge($status) {
                                                                 if (!isValid) {
                                                                     e.preventDefault();
                                                                     if(firstError) firstError.focus();
-                                                                    // Optional: Toast or small alert
+                                                                } else {
+                                                                    // Show uploading state
+                                                                    const submitBtn = document.getElementById('productSubmitBtn');
+                                                                    const submitText = document.getElementById('submitBtnText');
+                                                                    if (submitBtn && submitText) {
+                                                                        submitBtn.disabled = true;
+                                                                        submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                                                                        submitBtn.classList.remove('hover:bg-indigo-700', 'active:scale-[0.98]');
+                                                                        const isEditing = form.querySelector('input[name="action"]')?.value === 'edit_product';
+                                                                        submitText.innerHTML = isEditing
+                                                                            ? '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Saving Changes...'
+                                                                            : '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Uploading Product...';
+                                                                    }
                                                                 }
                                                             });
                                                         }
@@ -1969,8 +1945,8 @@ function getStatusBadge($status) {
                                             </div>
 
                                             <div class="pt-4 border-t border-slate-100">
-                                                <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition active:scale-[0.98]">
-                                                    <?= $productToEdit ? 'Save Changes' : 'Publish Product' ?>
+                                                <button type="submit" id="productSubmitBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition active:scale-[0.98] flex items-center justify-center gap-2">
+                                                    <span id="submitBtnText"><?= $productToEdit ? 'Save Changes' : 'Publish Product' ?></span>
                                                 </button>
                                             </div>
                                         </div>
@@ -2241,14 +2217,15 @@ function getStatusBadge($status) {
                                                 <div class="flex items-center gap-2">
                                                     <div class="font-black text-slate-800 text-sm group-hover:text-indigo-600 transition">
                                                         <?php 
-                                                            $displayPrice = '₦' . number_format($product['price']);
-                                                            // Use Variant Price Range if Base Price is 0 and variants exist
-                                                            if ($product['price'] == 0 && $product['min_variant_price'] > 0) {
+                                                            // Always prefer variant prices when variants exist
+                                                            if ($product['min_variant_price'] > 0) {
                                                                 if ($product['min_variant_price'] == $product['max_variant_price']) {
                                                                     $displayPrice = '₦' . number_format($product['min_variant_price']);
                                                                 } else {
                                                                     $displayPrice = '₦' . number_format($product['min_variant_price']) . ' - ₦' . number_format($product['max_variant_price']);
                                                                 }
+                                                            } else {
+                                                                $displayPrice = '₦' . number_format($product['price']);
                                                             }
                                                             echo $displayPrice;
                                                         ?>

@@ -246,20 +246,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // MODIFIED: Added price-display class and data-price-ngn attributes to the generated HTML
                 return `<li class="py-6 flex flex-col md:grid md:grid-cols-6 md:gap-4 md:items-center" data-id="${item.id}" data-quantity="${item.quantity}">
+                            <!-- Product Column -->
                             <div class="flex items-center space-x-4 col-span-3">
                                 <img src="${item.product_image}" alt="${item.product_name}" class="w-24 h-32 object-cover rounded-md">
-                                <div><h3 class="text-base font-medium text-brand-text">${item.product_name}</h3><p class="mt-1 text-sm text-brand-gray">${optionsHtml}</p></div>
-                            </div>
-                            <div class="mt-4 md:mt-0 flex justify-between items-center col-span-3">
-                                <p class="text-sm text-brand-text md:text-center md:col-span-1 price-display" data-price-ngn="${item.unit_price}"></p>
-                                <div class="flex items-center border border-gray-300 rounded-md md:col-span-1 md:mx-auto">
-                                    <button class="quantity-minus p-2 text-brand-gray hover:text-brand-text"><i data-feather="minus" class="w-4 h-4"></i></button>
-                                    <input type="text" value="${item.quantity}" class="w-10 text-center bg-transparent border-none focus:ring-0" readonly>
-                                    <button class="quantity-plus p-2 text-brand-gray hover:text-brand-text"><i data-feather="plus" class="w-4 h-4"></i></button>
+                                <div>
+                                    <h3 class="text-base font-medium text-brand-text">${item.product_name}</h3>
+                                    <p class="mt-1 text-sm text-brand-gray">${optionsHtml}</p>
                                 </div>
-                                <div class="flex items-center space-x-3">
-                                    <p class="text-base font-semibold text-brand-text text-right md:col-span-1 price-display" data-price-ngn="${item.total_price}"></p>
-                                    <button class="remove-item p-1 text-brand-gray hover:text-brand-red"><i data-feather="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+
+                            <!-- Price Column (md+) -->
+                            <div class="hidden md:block col-span-1 text-center">
+                                <p class="text-sm text-brand-text price-display" data-price-ngn="${item.unit_price}"></p>
+                            </div>
+
+                            <!-- Quantity Column -->
+                            <div class="mt-4 md:mt-0 col-span-3 md:col-span-1">
+                                <div class="flex items-center justify-between md:justify-center">
+                                    <span class="text-sm text-brand-gray md:hidden">Quantity</span>
+                                    <div class="flex items-center border border-gray-300 rounded-md">
+                                        <button class="quantity-minus p-2 text-brand-gray hover:text-brand-text"><i data-feather="minus" class="w-4 h-4"></i></button>
+                                        <input type="text" value="${item.quantity}" class="w-10 text-center bg-transparent border-none focus:ring-0" readonly>
+                                        <button class="quantity-plus p-2 text-brand-gray hover:text-brand-text"><i data-feather="plus" class="w-4 h-4"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Total & Action Column -->
+                            <div class="mt-4 md:mt-0 col-span-3 md:col-span-1">
+                                <div class="flex items-center justify-between md:justify-end space-x-3">
+                                    <span class="text-sm text-brand-gray md:hidden">Total</span>
+                                    <div class="flex items-center space-x-3">
+                                        <p class="text-base font-semibold text-brand-text price-display" data-price-ngn="${item.total_price}"></p>
+                                        <button class="remove-item p-1 text-brand-gray hover:text-brand-red"><i data-feather="trash-2" class="w-4 h-4"></i></button>
+                                    </div>
                                 </div>
                             </div>
                         </li>`;}).join('')}</ul><div class="mt-8"><a href="/shop" class="inline-flex items-center text-sm font-medium text-brand-text hover:text-brand-gray group"><i data-feather="arrow-left" class="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1"></i>Continue Shopping</a></div>`;

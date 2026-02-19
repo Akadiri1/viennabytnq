@@ -59,8 +59,35 @@ if (!empty($priceVariants)) {
 }
 
 
-// Set display price to base price since no option is selected initially
+// Detect if ALL variants have empty names (nameless variants = price/stock only)
+$allVariantsNameless = false;
+if (!empty($priceVariants)) {
+    $namedVariants = array_filter($priceVariants, fn($v) => trim($v['variant_name']) !== '');
+    $allVariantsNameless = empty($namedVariants);
+}
+
+// If all variants are nameless, don't build selectable options — use the first variant directly
+if ($allVariantsNameless) {
+    $productOptions = []; // Clear options so the dropdown won't render
+}
+
+// Set display price — calculate range for variant products
 $displayPrice = $singleProduct['price'];
+$priceRangeMin = null;
+$priceRangeMax = null;
+if (!empty($priceVariants)) {
+    $variantPrices = array_column($priceVariants, 'price');
+    $priceRangeMin = min($variantPrices);
+    $priceRangeMax = max($variantPrices);
+    $displayPrice = $priceRangeMin; // Show lowest price as default
+    // For nameless variants, show the variant's price (or base price as fallback)
+    if ($allVariantsNameless) {
+        $bestPrice = $priceVariants[0]['price'];
+        $displayPrice = ($bestPrice > 0) ? $bestPrice : $singleProduct['price'];
+        $priceRangeMin = null; // Don't show range for nameless
+        $priceRangeMax = null;
+    }
+}
 $sqlImages = "SELECT * FROM product_images WHERE product_id = ? ORDER BY id ASC";
 $imagesStmt = $conn->prepare($sqlImages);
 $imagesStmt->execute([$id]);
@@ -196,6 +223,17 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
         #custom-measurement-container { transition: max-height 0.35s ease-in-out, opacity 0.3s ease-in-out, margin-top 0.35s ease-in-out; overflow: hidden; max-height: 150px; opacity: 1; margin-top: 1rem; }
         #custom-measurement-container.is-closed { max-height: 0; opacity: 0; margin-top: 0; }
         .toastify { padding: 12px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; box-shadow: 0 3px 6px -1px rgba(0,0,0,.12), 0 10px 36px -4px rgba(51,45,45,.25); }
+        /* Dynamic Price Animation */
+        .price-pop {
+            animation: pricePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes pricePop {
+            0% { transform: scale(0.85); opacity: 0.3; }
+            50% { transform: scale(1.08); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        #product-price { transition: color 0.3s ease; }
+        .price-from-label { font-size: 0.55em; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.6; vertical-align: middle; }
         .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; } .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 20px; }
         .currency-switcher a { color: #6B7280; font-weight: 500; transition: color 0.2s ease-in-out; }
         .currency-switcher a:hover { color: #1A1A1A; }
@@ -282,14 +320,26 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
             <div class="flex flex-col pt-4 lg:pt-0 space-y-8">
                 <div>
                     <h1 id="product-name" class="text-4xl md:text-5xl font-serif font-semibold text-brand-text sr-only"><?= htmlspecialchars($singleProduct['name']) ?></h1>
-                    <p id="product-price" class="price-display text-2xl text-brand-gray mt-3 mb-5"
+                    <p id="product-price" class="price-display text-3xl font-semibold text-brand-text mt-3 mb-5"
                         data-base-price="<?= $singleProduct['price'] ?>"
-                        data-price-ngn="<?= $displayPrice ?>">
-                        ₦<?= number_format($displayPrice, 2) ?>
+                        data-price-ngn="<?= $displayPrice ?>"
+                        data-range-min="<?= $priceRangeMin ?? '' ?>"
+                        data-range-max="<?= $priceRangeMax ?? '' ?>"
+                        data-auto-variant-id="<?= $allVariantsNameless ? $priceVariants[0]['id'] : '' ?>">
+                        <?php if ($priceRangeMin !== null && $priceRangeMax !== null && $priceRangeMin != $priceRangeMax): ?>
+                            <span class="price-from-label">From </span>₦<?= number_format($priceRangeMin, 2) ?> <span class="text-lg text-brand-gray">–</span> ₦<?= number_format($priceRangeMax, 2) ?>
+                        <?php elseif ($priceRangeMin !== null): ?>
+                            ₦<?= number_format($priceRangeMin, 2) ?>
+                        <?php else: ?>
+                            ₦<?= number_format($displayPrice, 2) ?>
+                        <?php endif; ?>
                     </p>
                     <p id="stock-display" class="text-sm font-medium mb-5">
                         <?php if (empty($priceVariants)): ?>
                             <?= $singleProduct['stock_quantity'] > 0 ? '<span class="text-emerald-600">In Stock (' . $singleProduct['stock_quantity'] . ' available)</span>' : '<span class="text-brand-red">Out of Stock</span>' ?>
+                        <?php elseif ($allVariantsNameless): ?>
+                            <?php $autoStock = $priceVariants[0]['stock_quantity']; ?>
+                            <?= $autoStock > 0 ? '<span class="text-emerald-600">In Stock (' . $autoStock . ' available)</span>' : '<span class="text-brand-red">Out of Stock</span>' ?>
                         <?php else: ?>
                             <span class="text-brand-gray">Select an option to view stock</span>
                         <?php endif; ?>
@@ -330,6 +380,7 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                 </div>
                 <div>
                     <!-- Option/Size Selection (Modified to be visible by default) -->
+                    <?php if (!$allVariantsNameless): // Only show variant section if variants have names ?>
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="text-sm font-semibold">VARIANT <span class="<?= (!empty($productOptions)) ? 'text-brand-red font-semibold' : 'text-brand-gray font-normal' ?>"><?= (!empty($productOptions)) ? '(Required)' : '(Optional)' ?></span></h3>
                         <?php if(!empty($productOptions)): // Show if any standard options exist ?>
@@ -358,12 +409,11 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                                 <i data-feather="chevron-down" class="h-4 w-4"></i>
                             </div>
                         </div>
-                        <!-- NOTE: If options are present, the custom size toggle button is placed after the dropdown. -->
-                        <button id="open-custom-size-btn" class="text-sm text-brand-gray hover:text-brand-text underline mt-4">Or provide custom measurements</button>
-                    <?php else: ?>
-                        <!-- If NO standard options, only show the custom size toggle button/input. -->
-                        <button id="open-custom-size-btn" class="text-sm text-brand-gray hover:text-brand-text underline">Or provide custom measurements</button>
                     <?php endif; ?>
+                    <?php endif; // end !$allVariantsNameless ?>
+
+                    <!-- Custom size toggle button — always visible -->
+                    <button id="open-custom-size-btn" class="text-sm text-brand-gray hover:text-brand-text underline mt-4">Or provide custom measurements</button>
 
                     <!-- Custom Measurement Inputs (Visibility toggled via JS/CSS class) -->
                     <div id="custom-measurement-container" class="is-closed">
@@ -758,21 +808,23 @@ document.addEventListener("DOMContentLoaded", () => {
             payload.colorId = selectedColorOption.value;
         }
 
-        // Option/Size validation
-        if (selectors.productOptionSelect && selectors.productOptionSelect.options.length > 1) { 
+        // Option/Size validation — only required when named options exist
+        const autoVariantId = selectors.productPriceEl?.dataset.autoVariantId;
+        const hasStandardOptions = selectors.productOptionSelect && selectors.productOptionSelect.options.length > 1;
+        if (hasStandardOptions && !autoVariantId) { 
             if (!hasCustomMeasurements && (!selectedOption || selectedOption.value === "")) {
                 showToast("Please select an option/size or provide custom measurements.", "error");
                 resetAddToCartButton();
                 return;
             }
-        } else if (hasCustomMeasurements === false) {
-             showToast("Custom measurements are required for this item.", "error");
-             resetAddToCartButton();
-             return;
         }
+        // If no standard options exist, both variant selection and custom measurements are optional
 
         if (hasCustomMeasurements) {
             payload.customSizeDetails = customSizeDetails;
+        } else if (autoVariantId) {
+            // Nameless variant — auto-attach the variant ID
+            payload.priceVariantId = parseInt(autoVariantId);
         } else if (selectedOption && selectedOption.value !== "") {
             const optionType = selectedOption.dataset.type;
             const optionId = parseInt(selectedOption.dataset.id);
@@ -813,6 +865,20 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('.price-display').forEach(el => {
             const ngnPrice = parseFloat(el.dataset.priceNgn);
             if (!isNaN(ngnPrice)) {
+                // For the product price element with a range, show range in the correct currency
+                if (el.id === 'product-price' && el.dataset.rangeMin && el.dataset.rangeMax) {
+                    const min = parseFloat(el.dataset.rangeMin);
+                    const max = parseFloat(el.dataset.rangeMax);
+                    // Only show range if no specific variant is selected
+                    const optionSelect = document.getElementById('product-option-select');
+                    const hasSelection = optionSelect && optionSelect.value !== "";
+                    if (!hasSelection && min !== max) {
+                        const fMin = (targetCurrency === 'USD') ? formatCurrency(min / USD_RATE, 'USD') : formatCurrency(min, 'NGN');
+                        const fMax = (targetCurrency === 'USD') ? formatCurrency(max / USD_RATE, 'USD') : formatCurrency(max, 'NGN');
+                        el.innerHTML = `<span class="price-from-label">From </span>${fMin} <span class="text-lg text-brand-gray">–</span> ${fMax}`;
+                        return;
+                    }
+                }
                 let newPrice = (targetCurrency === 'USD') ? ngnPrice / USD_RATE : ngnPrice;
                 el.textContent = formatCurrency(newPrice, targetCurrency);
             }
@@ -901,6 +967,24 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Animate price change helper
+    const animatePrice = (priceEl, newPriceNgn, displayHtml) => {
+        priceEl.classList.remove('price-pop');
+        // Force reflow to restart the animation
+        void priceEl.offsetWidth;
+        priceEl.dataset.priceNgn = newPriceNgn;
+        if (displayHtml !== undefined) {
+            priceEl.innerHTML = displayHtml;
+        }
+        priceEl.classList.add('price-pop');
+        updateAllPrices(document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN');
+    };
+
+    // Build initial range HTML for reverting to when deselecting
+    const rangeMin = selectors.productPriceEl?.dataset.rangeMin;
+    const rangeMax = selectors.productPriceEl?.dataset.rangeMax;
+    const initialPriceHtml = selectors.productPriceEl?.innerHTML;
+
     // Handle product option/size dropdown change
     if (selectors.productOptionSelect) {
         selectors.productOptionSelect.addEventListener('change', function() {
@@ -908,9 +992,18 @@ document.addEventListener("DOMContentLoaded", () => {
             const priceModifier = parseFloat(selectedOption.dataset.priceModifier || 0);
             const basePrice = parseFloat(selectors.productPriceEl.dataset.basePrice);
             const newDisplayPrice = basePrice + priceModifier;
+            const activeCurrency = document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN';
 
-            selectors.productPriceEl.dataset.priceNgn = newDisplayPrice;
-            updateAllPrices(document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN');
+            if (selectedOption.value === "") {
+                // Revert to range display
+                animatePrice(selectors.productPriceEl, rangeMin || basePrice, initialPriceHtml);
+            } else {
+                // Show exact price with animation
+                const formattedPrice = activeCurrency === 'USD'
+                    ? formatCurrency(newDisplayPrice / (typeof USD_EXCHANGE_RATE !== 'undefined' ? USD_EXCHANGE_RATE : <?= defined('USD_EXCHANGE_RATE') ? USD_EXCHANGE_RATE : 1480 ?>), 'USD')
+                    : formatCurrency(newDisplayPrice, 'NGN');
+                animatePrice(selectors.productPriceEl, newDisplayPrice, formattedPrice);
+            }
 
             // Stock Display Logic & Button State
             const stockDisplay = document.getElementById('stock-display');

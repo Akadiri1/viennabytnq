@@ -15,6 +15,7 @@ try {
                 ci.id, 
                 ci.quantity, 
                 ci.total_price, 
+                (ci.total_price / ci.quantity) AS unit_price,
                 ci.color_name, 
                 ci.custom_color_name, 
                 ci.size_name, 
