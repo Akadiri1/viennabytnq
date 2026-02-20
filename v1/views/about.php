@@ -1,6 +1,7 @@
 <?php
-// You can include session start and other common headers here if needed
-// session_start();
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 // require_once 'includes/db_connection.php';
 
 // Mock data for demonstration
@@ -58,7 +59,12 @@ $logo_directory = 'images/favicon.png'; // Path to your favicon
                     </a>
                 </div>
                 <div class="flex-1 flex items-center justify-end space-x-4">
-                    <!-- Placeholder for cart/search icons -->
+                    <a href="<?= isset($_SESSION['user_id']) ? '/user-dashboard' : '/register' ?>" class="p-2 text-brand-text hover:text-brand-gray" title="<?= isset($_SESSION['user_id']) ? 'My Account' : 'Login / Register' ?>">
+                        <i data-feather="user" class="h-5 w-5"></i>
+                    </a>
+                    <a href="/view-cart" class="p-2 text-brand-text hover:text-brand-gray">
+                        <i data-feather="shopping-bag" class="h-5 w-5"></i>
+                    </a>
                 </div>
             </div>
         </div>

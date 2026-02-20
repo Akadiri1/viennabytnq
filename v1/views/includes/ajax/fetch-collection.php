@@ -24,6 +24,13 @@ try {
     $minPrice = isset($_GET['min_price']) ? (float)$_GET['min_price'] : null;
     $maxPrice = isset($_GET['max_price']) ? (float)$_GET['max_price'] : null;
 
+    // Variant filter params — comma-separated variant names e.g. "Blue,Red,XL"
+    $variantNames = [];
+    if (!empty($_GET['variant_names'])) {
+        $variantNames = array_filter(array_map('trim', explode(',', $_GET['variant_names'])));
+    }
+
+
     // Build Query with variant aggregation
     $select = "SELECT p.*, 
         (SELECT MIN(price) FROM product_price_variants WHERE product_id = p.id AND price > 0) as min_variant_price,
@@ -82,6 +89,16 @@ try {
             $params[] = $maxPrice;
             $params[] = $maxPrice;
         }
+    }
+
+    // Variant name filter — product must have at least one variant matching a selected name
+    if (!empty($variantNames)) {
+        $vnPH = implode(',', array_fill(0, count($variantNames), '?'));
+        $where .= " AND EXISTS (
+            SELECT 1 FROM product_price_variants ppv
+            WHERE ppv.product_id = p.id AND ppv.variant_name IN ($vnPH)
+        )";
+        foreach ($variantNames as $vn) $params[] = $vn;
     }
 
     // Sort — use effective_price (variant-aware) for price sorting

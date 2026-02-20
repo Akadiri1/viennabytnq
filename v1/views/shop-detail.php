@@ -98,6 +98,34 @@ $colorsStmt = $conn->prepare($sqlColors);
 $colorsStmt->execute([$id]);
 $availableColors = $colorsStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// --- FETCH REVIEWS ---
+// --- FETCH REVIEWS ---
+$productReviews = [];
+$averageRating = 0;
+$totalReviews = 0;
+
+try {
+    $sqlReviews = "SELECT * FROM product_reviews WHERE product_id = ? AND is_approved = 1 ORDER BY created_at DESC";
+    $stmtReviews = $conn->prepare($sqlReviews);
+    $stmtReviews->execute([$id]);
+    $productReviews = $stmtReviews->fetchAll(PDO::FETCH_ASSOC);
+
+    // Calculate Average Rating
+    $totalReviews = count($productReviews);
+    if ($totalReviews > 0) {
+        $sumRating = array_sum(array_column($productReviews, 'rating'));
+        $averageRating = round($sumRating / $totalReviews, 1);
+    }
+} catch (Exception $e) {
+    // Fail silently or log error, but don't kill the page
+    error_log("Error fetching reviews: " . $e->getMessage());
+}
+
+
+
+
+
+
 $relatedProducts = [];
 if (!empty($singleProduct['collection_id'])) {
     $relatedProductsQuery = "SELECT * FROM panel_products WHERE visibility = 'show' AND id != ? AND collection_id = ? ORDER BY RAND() LIMIT 4";
@@ -116,6 +144,11 @@ if (count($relatedProducts) < 4) {
 
 function getLiveUsdToNgnRate()
 {
+    // Check session cache (1 hour expiry)
+    if (isset($_SESSION['usd_ngn_rate']) && isset($_SESSION['usd_ngn_rate_time']) && (time() - $_SESSION['usd_ngn_rate_time'] < 3600)) {
+        return $_SESSION['usd_ngn_rate'];
+    }
+
     // Try multiple free exchange rate APIs
     $apis = [
         'https://open.er-api.com/v6/latest/USD',
@@ -123,18 +156,28 @@ function getLiveUsdToNgnRate()
     ];
     
     foreach ($apis as $apiUrl) {
-        $context = stream_context_create(['http' => ['timeout' => 5]]);
+        // Reduced timeout to 2 seconds to avoid blocking page load
+        $context = stream_context_create(['http' => ['timeout' => 2]]);
         $response = @file_get_contents($apiUrl, false, $context);
         if ($response) {
             $data = json_decode($response, true);
             if (isset($data['rates']['NGN'])) {
-                return floatval($data['rates']['NGN']);
+                $rate = floatval($data['rates']['NGN']);
+                // Cache result
+                $_SESSION['usd_ngn_rate'] = $rate;
+                $_SESSION['usd_ngn_rate_time'] = time();
+                return $rate;
             }
         }
     }
     
+    // Use last cached value if available (even if expired)
+    if (isset($_SESSION['usd_ngn_rate'])) {
+        return $_SESSION['usd_ngn_rate'];
+    }
+    
     // Fallback in case all APIs fail - use current market rate (Jan 2025)
-    return 1480; // Current market rate (Jan 2025)
+    return 1480; 
 }
 
 // Define exchange rate constant (only once)
@@ -282,6 +325,17 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                     <li><a href="/about" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="info" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">About Us</span></a></li>
                     <li><a href="/register" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="user" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Login / Register</span></a></li>
                     <li><a href="/privacy" class="flex items-center p-3 text-base font-medium text-brand-text rounded-md hover:bg-gray-200/60 transition-colors duration-200"><i data-feather="truck" class="w-5 h-5 text-brand-gray mr-4"></i><span class="tracking-wide">Shipping Policy</span></a></li>
+                
+                <!-- Mobile Currency Switcher -->
+                <li class="border-t border-gray-100 pt-4 mt-2">
+                    <div class="px-3">
+                        <span class="block text-xs font-bold text-brand-gray uppercase tracking-widest mb-3">Currency</span>
+                        <div class="flex gap-2 currency-switcher">
+                            <a href="#" class="currency-link flex-1 py-2 text-center rounded-md text-sm font-medium border <?= ($current_currency === 'NGN') ? 'border-brand-text bg-brand-text text-white' : 'border-gray-200 text-brand-gray hover:border-brand-text' ?>" data-currency="NGN">NGN</a>
+                            <a href="#" class="currency-link flex-1 py-2 text-center rounded-md text-sm font-medium border <?= ($current_currency === 'USD') ? 'border-brand-text bg-brand-text text-white' : 'border-gray-200 text-brand-gray hover:border-brand-text' ?>" data-currency="USD">USD</a>
+                        </div>
+                    </div>
+                </li>
                 </ul>
             </nav>
             <div class="p-6 border-t border-gray-200"><p class="text-xs text-brand-gray text-center">© <?=date('Y')?> <?=$site_name?></p></div>
@@ -292,7 +346,14 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
     <div id="cart-sidebar" class="fixed inset-0 z-[60] transform translate-x-full transition-transform duration-300 ease-in-out"><div id="cart-overlay" class="absolute inset-0 bg-black/40 cursor-pointer"></div><div class="relative w-full max-w-md ml-auto h-full bg-brand-bg shadow-2xl flex flex-col"><div class="p-6 flex justify-between items-center border-b border-gray-200"><h2 id="cart-title" class="text-2xl font-serif font-semibold">Your Cart</h2><button id="close-cart-btn" class="p-2 text-brand-gray hover:text-brand-text"><i data-feather="x" class="h-6 w-6"></i></button></div><div id="cart-items-container" class="flex-grow p-6 overflow-y-auto"></div><div class="p-6 border-t border-gray-200 space-y-4 bg-brand-bg"><div class="flex justify-between font-semibold"><span>Subtotal</span><span id="cart-subtotal" class="price-display" data-price-ngn="0">₦0.00</span></div><a href="/view-cart" class="block w-full bg-transparent text-brand-text border border-brand-text py-3 text-center font-semibold hover:bg-gray-100 transition-colors">VIEW CART</a><a href="/checkout" class="block w-full bg-brand-text text-white py-3 text-center font-semibold hover:bg-gray-800 transition-colors">CHECKOUT</a></div></div></div>
 
     <!-- HEADER - MODIFIED -->
-    <header class="bg-white/10 backdrop-blur-lg border-b border-gray-200/60 sticky top-0 z-40"><div class="container mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center justify-between h-16"><div class="flex-1 flex justify-start"><button id="open-sidebar-btn" class="p-2 text-brand-text hover:text-brand-gray"><i data-feather="menu" class="h-6 w-6"></i></button></div><div class="flex-shrink-0 text-center"><a href="/home"><div class="text-1xl font-serif font-bold tracking-widest"><?=$site_name?></div></a></div><div class="flex-1 flex items-center justify-end space-x-4"><div class="currency-switcher text-sm"><a href="#" class="currency-link <?= ($current_currency === 'NGN') ? 'active' : '' ?>" data-currency="NGN">NGN</a><span class="mx-1 text-brand-gray">/</span><a href="#" class="currency-link <?= ($current_currency === 'USD') ? 'active' : '' ?>" data-currency="USD">USD</a></div><button id="open-cart-btn" class="p-2 text-brand-text hover:text-brand-gray relative"><i data-feather="shopping-bag" class="h-5 w-5"></i><span id="cart-item-count" class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-brand-red text-white text-xs flex items-center justify-center font-bold" style="font-size: 8px; display: none;">0</span></button></div></div></div></header>
+    <header class="bg-white/10 backdrop-blur-lg border-b border-gray-200/60 sticky top-0 z-40"><div class="container mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center justify-between h-16"><div class="flex-1 flex justify-start"><button id="open-sidebar-btn" class="p-2 text-brand-text hover:text-brand-gray"><i data-feather="menu" class="h-6 w-6"></i></button></div><div class="flex-shrink-0 text-center"><a href="/home"><img src="<?=$logo_directory?>" alt="<?=$site_name?>" class="h-8 w-auto object-contain"></a></div><div class="flex-1 flex items-center justify-end space-x-2 md:space-x-4">
+                            <div class="hidden md:flex bg-gray-100 rounded-full p-0.5 items-center currency-switcher scale-90 origin-right md:scale-100 md:p-1">
+                                <a href="#" class="currency-link px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-bold transition-all duration-200 <?= ($current_currency === 'NGN') ? 'bg-white shadow-sm text-brand-text' : 'text-brand-gray hover:text-brand-text' ?>" data-currency="NGN">NGN</a>
+                                <a href="#" class="currency-link px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-bold transition-all duration-200 <?= ($current_currency === 'USD') ? 'bg-white shadow-sm text-brand-text' : 'text-brand-gray hover:text-brand-text' ?>" data-currency="USD">USD</a>
+                            </div>
+                            <a href="<?= isset($_SESSION['user_id']) ? '/user-dashboard' : '/register' ?>" class="p-1 md:p-2 text-brand-text hover:text-brand-gray" title="<?= isset($_SESSION['user_id']) ? 'My Account' : 'Login / Register' ?>"><i data-feather="user" class="h-5 w-5"></i></a>
+                            <button id="open-cart-btn" class="p-1 md:p-2 text-brand-text hover:text-brand-gray relative"><i data-feather="shopping-bag" class="h-5 w-5"></i><span id="cart-item-count" class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-brand-red text-white text-xs flex items-center justify-center font-bold" style="font-size: 8px; display: none;">0</span></button>
+</div></div></div></header>
 
     <section class="relative h-64 md:h-80 bg-cover bg-center" style="background-image: url('/<?= htmlspecialchars($singleProduct['image_one'] ?? '') ?>');"><div class="absolute inset-0 bg-black/30"></div><div class="relative z-10 h-full flex flex-col justify-center items-center text-white text-center px-4"><nav class="text-sm font-light tracking-wider" aria-label="Breadcrumb"><ol class="list-none p-0 inline-flex items-center"><li class="flex items-center"><a href="/home" class="hover:underline">Home</a><i data-feather="chevron-right" class="h-4 w-4 mx-2"></i></li><li class="flex items-center"><a href="/shop" class="hover:underline">Shop</a></li></ol></nav><h1 class="text-5xl md:text-6xl font-serif font-semibold mt-4"><?= htmlspecialchars($singleProduct['name']) ?></h1></div></section>
 
@@ -320,20 +381,28 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
             <div class="flex flex-col pt-4 lg:pt-0 space-y-8">
                 <div>
                     <h1 id="product-name" class="text-4xl md:text-5xl font-serif font-semibold text-brand-text sr-only"><?= htmlspecialchars($singleProduct['name']) ?></h1>
-                    <p id="product-price" class="price-display text-3xl font-semibold text-brand-text mt-3 mb-5"
-                        data-base-price="<?= $singleProduct['price'] ?>"
-                        data-price-ngn="<?= $displayPrice ?>"
-                        data-range-min="<?= $priceRangeMin ?? '' ?>"
-                        data-range-max="<?= $priceRangeMax ?? '' ?>"
-                        data-auto-variant-id="<?= $allVariantsNameless ? $priceVariants[0]['id'] : '' ?>">
-                        <?php if ($priceRangeMin !== null && $priceRangeMax !== null && $priceRangeMin != $priceRangeMax): ?>
-                            <span class="price-from-label">From </span>₦<?= number_format($priceRangeMin, 2) ?> <span class="text-lg text-brand-gray">–</span> ₦<?= number_format($priceRangeMax, 2) ?>
-                        <?php elseif ($priceRangeMin !== null): ?>
-                            ₦<?= number_format($priceRangeMin, 2) ?>
-                        <?php else: ?>
-                            ₦<?= number_format($displayPrice, 2) ?>
-                        <?php endif; ?>
-                    </p>
+                    <div class="flex items-center gap-4 mt-3 mb-5">
+                        <p id="product-price" class="price-display text-3xl font-semibold text-brand-text mb-0"
+                            data-base-price="<?= $singleProduct['price'] ?>"
+                            data-price-ngn="<?= $displayPrice ?>"
+                            data-range-min="<?= $priceRangeMin ?? '' ?>"
+                            data-range-max="<?= $priceRangeMax ?? '' ?>"
+                            data-auto-variant-id="<?= $allVariantsNameless ? $priceVariants[0]['id'] : '' ?>">
+                            <?php if ($priceRangeMin !== null && $priceRangeMax !== null && $priceRangeMin != $priceRangeMax): ?>
+                                <span class="price-from-label">From </span>₦<?= number_format($priceRangeMin, 2) ?> <span class="text-lg text-brand-gray">–</span> ₦<?= number_format($priceRangeMax, 2) ?>
+                            <?php elseif ($priceRangeMin !== null): ?>
+                                ₦<?= number_format($priceRangeMin, 2) ?>
+                            <?php else: ?>
+                                ₦<?= number_format($displayPrice, 2) ?>
+                            <?php endif; ?>
+                        </p>
+                        
+                        <!-- Currency Switcher Beside Price -->
+                        <div class="flex bg-gray-100 rounded-full p-0.5 items-center currency-switcher scale-90 origin-left md:scale-100 md:p-1">
+                            <a href="#" class="currency-link px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-bold transition-all duration-200 <?= ($current_currency === 'NGN') ? 'bg-white shadow-sm text-brand-text' : 'text-brand-gray hover:text-brand-text' ?>" data-currency="NGN">NGN</a>
+                            <a href="#" class="currency-link px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-bold transition-all duration-200 <?= ($current_currency === 'USD') ? 'bg-white shadow-sm text-brand-text' : 'text-brand-gray hover:text-brand-text' ?>" data-currency="USD">USD</a>
+                        </div>
+                    </div>
                     <p id="stock-display" class="text-sm font-medium mb-5">
                         <?php if (empty($priceVariants)): ?>
                             <?= $singleProduct['stock_quantity'] > 0 ? '<span class="text-emerald-600">In Stock (' . $singleProduct['stock_quantity'] . ' available)</span>' : '<span class="text-brand-red">Out of Stock</span>' ?>
@@ -500,9 +569,102 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
             <?php endforeach; ?>
         </div>
     </section>
+
     <?php endif; ?>
 
-    <!-- MODALS -->
+    <!-- =================================================================== -->
+    <!-- REVIEWS SECTION                                                     -->
+    <!-- =================================================================== -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-gray-200" id="reviews-section">
+        <h2 class="text-2xl font-serif font-semibold mb-8">Customer Reviews</h2>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <!-- LEFT: Summary & Form -->
+            <div class="lg:col-span-1 space-y-8">
+                
+                <!-- Rating Summary -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div class="text-center">
+                        <div id="avg-rating-value" class="text-5xl font-bold text-brand-text mb-2"><?= $averageRating ?></div>
+                        <div id="avg-rating-stars" class="flex justify-center gap-1 text-yellow-400 mb-2">
+                            <?php for($i=1; $i<=5; $i++): ?>
+                                <i data-feather="star" class="w-5 h-5 <?= $i <= round($averageRating) ? 'fill-current' : 'text-gray-300' ?>"></i>
+                            <?php endfor; ?>
+                        </div>
+                        <p id="reviews-count" class="text-sm text-brand-gray"><?= $totalReviews ?> review<?= $totalReviews !== 1 ? 's' : '' ?></p>
+                    </div>
+                </div>
+
+                <!-- Review Form (Logged In Only) -->
+                <?php if (isset($_SESSION['user_id'])): ?>
+                    <form id="review-form" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="text-lg font-semibold mb-4">Write a Review</h3>
+                        <input type="hidden" name="product_id" value="<?= $id ?>">
+                        
+                        <!-- Star Input -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-brand-gray mb-1">Rating</label>
+                            <div class="flex gap-2" id="star-rating-input">
+                                <?php for($i=1; $i<=5; $i++): ?>
+                                    <button type="button" class="star-btn text-gray-300 hover:text-yellow-400 transition-colors" data-value="<?= $i ?>">
+                                        <i data-feather="star" class="w-6 h-6 fill-current"></i>
+                                    </button>
+                                <?php endfor; ?>
+                            </div>
+                            <input type="hidden" name="rating" id="rating-value" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-brand-gray mb-1">Your Review</label>
+                            <textarea name="review_text" rows="4" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-brand-text resize-none" placeholder="Share your thoughts..." required></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-brand-text text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" id="submit-review-btn">Submit Review</button>
+                    </form>
+                <?php else: ?>
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center">
+                        <p class="text-brand-gray mb-4">Please log in to write a review.</p>
+                        <a href="/register?form=login&redirect=<?= urlencode($_SERVER['REQUEST_URI']) ?>" class="inline-block bg-white border border-gray-300 text-brand-text px-6 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors">Log In</a>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- RIGHT: Reviews List -->
+            <div class="lg:col-span-2">
+                <div id="reviews-list" class="space-y-6">
+                    <?php if ($totalReviews > 0): ?>
+                        <?php foreach ($productReviews as $review): ?>
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex gap-4">
+                                <div class="flex-shrink-0">
+                                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-brand-gray font-bold text-lg">
+                                        <?= strtoupper(substr($review['reviewer_name'], 0, 1)) ?>
+                                    </div>
+                                </div>
+                                <div class="flex-grow">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h4 class="font-semibold text-brand-text"><?= htmlspecialchars($review['reviewer_name']) ?></h4>
+                                        <span class="text-xs text-brand-gray"><?= date('F j, Y', strtotime($review['created_at'])) ?></span>
+                                    </div>
+                                    <div class="flex gap-0.5 text-yellow-400 mb-2">
+                                        <?php for($i=1; $i<=5; $i++): ?>
+                                            <i data-feather="star" class="w-4 h-4 <?= $i <= $review['rating'] ? 'fill-current' : 'text-gray-300' ?>"></i>
+                                        <?php endfor; ?>
+                                    </div>
+                                    <p class="text-sm text-gray-600 leading-relaxed"><?= nl2br(htmlspecialchars($review['review_text'])) ?></p>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div id="no-reviews-msg" class="text-center py-12 text-brand-gray">
+                            <i data-feather="message-square" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>
+                            <p>No reviews yet. Be the first to share your thoughts!</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div id="custom-size-modal" class="modal-container hidden"><div id="custom-size-overlay" class="modal-overlay"></div><div class="modal-panel p-6"><div class="flex justify-between items-start pb-4"><div><h3 class="text-xl font-serif font-semibold">Custom Measurements</h3><p class="text-sm text-brand-gray mt-1">Please make sure you’re not wearing a padded bra when measuring.</p></div><button id="close-custom-size-btn" class="p-1 text-brand-gray hover:text-brand-text"><i data-feather="x" class="w-5 h-5"></i></button></div><div class="mt-4 space-y-6 modal-form-scrollable"><div id="custom-measurements-form" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
         <div><label for="back_size" class="text-sm font-medium text-brand-gray">Back</label><input type="text" id="back_size" class="form-input-sleek mt-1" placeholder="e.g., 16 in"/></div>
         <div><label for="bust_size" class="text-sm font-medium text-brand-gray">Bust</label><input type="text" id="bust_size" class="form-input-sleek mt-1" placeholder="e.g., 36 in"/></div>
@@ -1162,7 +1324,156 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+
+    // --- REVIEW SYSTEM JS ---
+    const starBtns = document.querySelectorAll('.star-btn');
+    const ratingInput = document.getElementById('rating-value');
+    
+    // Star Rating Click Interaction
+    if (starBtns.length) {
+        starBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const value = parseInt(btn.dataset.value);
+                ratingInput.value = value;
+                // Update UI visually
+                starBtns.forEach(b => {
+                    const bVal = parseInt(b.dataset.value);
+                    const icon = b.querySelector('svg.feather') || b.querySelector('i'); // Handle both cases (before/after replace)
+                    
+                    if (bVal <= value) {
+                        b.classList.remove('text-gray-300');
+                        b.classList.add('text-yellow-400');
+                        if(icon) icon.classList.add('fill-current'); 
+                    } else {
+                        b.classList.add('text-gray-300');
+                        b.classList.remove('text-yellow-400');
+                        if(icon) icon.classList.remove('fill-current');
+                    }
+                });
+            });
+        });
+    }
+
+
+    // AJAX Review Submission
+    const reviewForm = document.getElementById('review-form');
+    if (reviewForm) {
+        reviewForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Basic validation
+            if (!ratingInput.value) {
+                if(typeof Toastify !== 'undefined') {
+                     Toastify({ text: "Please select a star rating", duration: 3000, style: { background: "linear-gradient(to right, #ff5f6d, #ffc371)" } }).showToast();
+                } else alert("Please select a star rating");
+                return;
+            }
+
+            const submitBtn = document.getElementById('submit-review-btn');
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.textContent = "Submitting...";
+            submitBtn.disabled = true;
+
+            const formData = new FormData(reviewForm);
+
+            try {
+                const response = await fetch('/submit-review', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                     if(typeof Toastify !== 'undefined') {
+                        Toastify({ text: result.message, duration: 3000, style: { background: "linear-gradient(to right, #00b09b, #96c93d)" } }).showToast();
+                    } else alert(result.message);
+
+                    // Reset form
+                    reviewForm.reset();
+                    ratingInput.value = '';
+                    starBtns.forEach(b => {
+                        b.classList.add('text-gray-300');
+                        b.classList.remove('text-yellow-400');
+                        const icon = b.querySelector('svg.feather') || b.querySelector('i');
+                        if(icon) icon.classList.remove('fill-current');
+                    });
+                    if (typeof feather !== 'undefined') feather.replace();
+
+                    // Update Summary Stats
+                    if (result.new_total !== undefined) {
+                        const avgValEl = document.getElementById('avg-rating-value');
+                        const countEl = document.getElementById('reviews-count');
+                        const starsContainer = document.getElementById('avg-rating-stars');
+
+                        if(avgValEl) avgValEl.textContent = result.new_average;
+                        if(countEl) countEl.textContent = result.new_total + (result.new_total === 1 ? " review" : " reviews");
+                        
+                        if(starsContainer) {
+                            let avgStarsHtml = '';
+                            for(let i=1; i<=5; i++) {
+                                const fClass = i <= Math.round(result.new_average) ? 'fill-current' : 'text-gray-300';
+                                avgStarsHtml += `<i data-feather="star" class="w-5 h-5 ${fClass}"></i>`;
+                            }
+                            starsContainer.innerHTML = avgStarsHtml;
+                        }
+                    }
+
+                    // Prepend new review to list
+                    const reviewsList = document.getElementById('reviews-list');
+                    const noReviewsMsg = document.getElementById('no-reviews-msg');
+                    if (noReviewsMsg) noReviewsMsg.remove();
+
+                    const review = result.review;
+                    let starsHtml = '';
+                    for(let i=1; i<=5; i++) {
+                         let fillClass = i <= review.rating ? 'fill-current' : 'text-gray-300';
+                         starsHtml += `<i data-feather="star" class="w-4 h-4 ${fillClass}"></i>`;
+                    }
+                    
+                    const newReviewHtml = `
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex gap-4 animate-fade-in-up">
+                            <div class="flex-shrink-0">
+                                <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-brand-gray font-bold text-lg">
+                                    ${review.avatar_letter}
+                                </div>
+                            </div>
+                            <div class="flex-grow">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="font-semibold text-brand-text">${review.reviewer_name}</h4>
+                                    <span class="text-xs text-brand-gray">${review.created_at}</span>
+                                </div>
+                                <div class="flex gap-0.5 text-yellow-400 mb-2">
+                                    ${starsHtml}
+                                </div>
+                                <p class="text-sm text-gray-600 leading-relaxed">${review.review_text}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    reviewsList.insertAdjacentHTML('afterbegin', newReviewHtml);
+                    if (typeof feather !== 'undefined') feather.replace();
+
+                } else {
+                     if(typeof Toastify !== 'undefined') {
+                        Toastify({ text: result.message, duration: 3000, style: { background: "linear-gradient(to right, #ff5f6d, #ffc371)" } }).showToast();
+                    } else alert(result.message);
+                }
+
+            } catch (error) {
+                console.error("Review Submission Error:", error);
+                if(typeof Toastify !== 'undefined') {
+                    Toastify({ text: "An error occurred. Please try again.", duration: 3000, style: { background: "linear-gradient(to right, #ff5f6d, #ffc371)" } }).showToast();
+                } else alert("An error occurred.");
+            } finally {
+                submitBtn.textContent = originalBtnText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
 });
+
 </script>
 
 </body>

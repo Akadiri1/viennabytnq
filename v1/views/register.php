@@ -75,7 +75,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 $_SESSION['user_name'] = $user['full_name'];
                 
                 // Redirect to the dashboard
-                header("Location: /user-dashboard");
+                $redirect = $_POST['redirect'] ?? '';
+                if ($redirect && strpos($redirect, '/') === 0) {
+                    header("Location: " . $redirect);
+                } else {
+                    header("Location: /user-dashboard");
+                }
                 exit();
             } else {
                 $toast_message = "Invalid email or password.";
@@ -131,6 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 </div>
                 <form class="mt-8 space-y-6" action="auth" method="POST">
                     <input type="hidden" name="action" value="login">
+                    <input type="hidden" name="redirect" value="<?= htmlspecialchars($_REQUEST['redirect'] ?? '') ?>">
                     <div class="space-y-4">
                         <div>
                             <label for="login-email" class="text-sm font-medium text-brand-gray">Email address</label>
@@ -154,6 +160,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 </div>
                 <form class="mt-8 space-y-6" action="auth" method="POST">
                     <input type="hidden" name="action" value="register">
+                    <input type="hidden" name="redirect" value="<?= htmlspecialchars($_REQUEST['redirect'] ?? '') ?>">
                     <div class="space-y-4">
                         <div>
                             <label for="full_name" class="text-sm font-medium text-brand-gray">Full Name</label>

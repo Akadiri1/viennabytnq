@@ -113,6 +113,9 @@ $productBreadcrumb = selectContent($conn, "product_breadcrumb", ['visibility' =>
             <div class="flex-1 flex justify-start"><button id="open-sidebar-btn" class="p-2 text-brand-text hover:text-brand-gray"><i data-feather="menu" class="h-6 w-6"></i></button></div>
             <div class="flex-shrink-0 text-center"><a href="/home"><div class="text-2xl font-serif font-bold tracking-widest"><?=$site_name?></div></a></div>
             <div class="flex-1 flex items-center justify-end space-x-4">
+                <a href="<?= isset($_SESSION['user_id']) ? '/user-dashboard' : '/register' ?>" class="p-2 text-brand-text hover:text-brand-gray" title="<?= isset($_SESSION['user_id']) ? 'My Account' : 'Login / Register' ?>">
+                    <i data-feather="user" class="h-5 w-5"></i>
+                </a>
                 <a href="/view-cart" class="p-2 text-brand-text hover:text-brand-gray relative">
                     <i data-feather="shopping-bag" class="h-5 w-5"></i>
                     <span id="header-cart-count" class="absolute top-0 right-0 block h-4 w-4 rounded-full bg-brand-red text-white text-xs flex items-center justify-center font-bold" style="font-size: 8px; display: none;">0</span>

@@ -850,6 +850,37 @@ if ($page === 'discount_codes') {
     }
 }
 
+if ($page === 'reviews') {
+    // Handle Actions
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_action'])) {
+        $action = $_POST['review_action'];
+        $review_id = intval($_POST['review_id'] ?? 0);
+
+        if ($review_id > 0) {
+            if ($action === 'approve') {
+                $conn->prepare("UPDATE product_reviews SET is_approved = 1 WHERE id = ?")->execute([$review_id]);
+                $_SESSION['success_message'] = "Review approved successfully.";
+            } elseif ($action === 'unapprove') {
+                $conn->prepare("UPDATE product_reviews SET is_approved = 0 WHERE id = ?")->execute([$review_id]);
+                $_SESSION['success_message'] = "Review unapproved successfully.";
+            } elseif ($action === 'delete') {
+                $conn->prepare("DELETE FROM product_reviews WHERE id = ?")->execute([$review_id]);
+                $_SESSION['success_message'] = "Review deleted successfully.";
+            }
+        }
+        header('Location: /dashboard?page=reviews');
+        exit;
+    }
+
+    // Fetch Reviews
+    $reviews = $conn->query("
+        SELECT r.*, p.name as product_name, p.image_one 
+        FROM product_reviews r 
+        JOIN panel_products p ON r.product_id = p.id 
+        ORDER BY r.created_at DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+}
+
 if ($page === 'add_product') {
     $colors = $conn->query("SELECT * FROM colors ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $sizes = $conn->query("SELECT * FROM sizes ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -953,6 +984,9 @@ function getStatusBadge($status) {
                 </a>
                 <a href="?page=clients" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'clients' ? 'active' : '' ?>">
                     <i class="fa-solid fa-users w-5"></i><span class="ml-3 font-medium">Clients</span>
+                </a>
+                <a href="?page=reviews" @click="sidebarOpen = false" class="nav-link flex items-center px-4 py-3 rounded-xl hover:text-white <?= $page == 'reviews' ? 'active' : '' ?>">
+                    <i class="fa-solid fa-star w-5"></i><span class="ml-3 font-medium">Reviews</span>
                 </a>
 
                 <p class="text-[10px] uppercase font-bold text-slate-500 px-3 mt-8 mb-2 tracking-widest">Inventory</p>
@@ -2965,6 +2999,82 @@ function getStatusBadge($status) {
                                     </div>
                                 </div>
                                 <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php break; ?>
+
+                    <?php case 'reviews': ?>
+                        <div class="glass-card overflow-hidden">
+                            <div class="px-8 py-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <h4 class="font-bold text-slate-800">Customer Reviews <span class="text-slate-400 ml-1 font-medium">(<?= count($reviews ?? []) ?>)</span></h4>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead>
+                                        <tr class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
+                                            <th class="px-8 py-4">Product</th>
+                                            <th class="px-8 py-4">Reviewer</th>
+                                            <th class="px-8 py-4">Rating</th>
+                                            <th class="px-8 py-4">Review</th>
+                                            <th class="px-8 py-4">Status</th>
+                                            <th class="px-8 py-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-50">
+                                        <?php if (!empty($reviews)): ?>
+                                            <?php foreach ($reviews as $review): ?>
+                                            <tr class="hover:bg-slate-50/50 transition">
+                                                <td class="px-8 py-4">
+                                                    <div class="flex items-center gap-3">
+                                                        <img src="/<?= htmlspecialchars($review['image_one']) ?>" class="w-10 h-10 rounded-lg object-cover bg-slate-100">
+                                                        <span class="text-sm font-bold text-slate-700 max-w-[150px] truncate" title="<?= htmlspecialchars($review['product_name']) ?>"><?= htmlspecialchars($review['product_name']) ?></span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-8 py-4">
+                                                    <div class="font-bold text-slate-700 text-sm"><?= htmlspecialchars($review['reviewer_name']) ?></div>
+                                                    <div class="text-xs text-slate-400"><?= date('M j, Y', strtotime($review['created_at'])) ?></div>
+                                                </td>
+                                                <td class="px-8 py-4">
+                                                    <div class="flex text-amber-400 text-xs">
+                                                        <?php for($i=1; $i<=5; $i++): ?>
+                                                            <i class="fa-solid fa-star <?= $i <= $review['rating'] ? '' : 'text-slate-200' ?>"></i>
+                                                        <?php endfor; ?>
+                                                    </div>
+                                                </td>
+                                                <td class="px-8 py-4">
+                                                    <p class="text-sm text-slate-600 max-w-xs truncate" title="<?= htmlspecialchars($review['review_text']) ?>"><?= htmlspecialchars($review['review_text']) ?></p>
+                                                </td>
+                                                <td class="px-8 py-4">
+                                                    <?php if($review['is_approved'] == 1): ?>
+                                                        <span class="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold uppercase">Approved</span>
+                                                    <?php else: ?>
+                                                        <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold uppercase">Pending</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="px-8 py-4 text-right space-x-2">
+                                                    <form method="POST" class="inline">
+                                                        <input type="hidden" name="review_id" value="<?= $review['id'] ?>">
+                                                        <?php if($review['is_approved'] == 1): ?>
+                                                            <input type="hidden" name="review_action" value="unapprove">
+                                                            <button type="submit" class="text-amber-500 hover:text-amber-700" title="Unapprove"><i class="fa-solid fa-ban"></i></button>
+                                                        <?php else: ?>
+                                                            <input type="hidden" name="review_action" value="approve">
+                                                            <button type="submit" class="text-emerald-500 hover:text-emerald-700" title="Approve"><i class="fa-solid fa-check"></i></button>
+                                                        <?php endif; ?>
+                                                    </form>
+                                                    <form method="POST" class="inline" onsubmit="return confirm('Delete this review?')">
+                                                        <input type="hidden" name="review_id" value="<?= $review['id'] ?>">
+                                                        <input type="hidden" name="review_action" value="delete">
+                                                        <button type="submit" class="text-rose-400 hover:text-rose-600" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <tr><td colspan="6" class="text-center py-8 text-slate-400 font-medium">No reviews found.</td></tr>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     <?php break; ?>
