@@ -73,12 +73,12 @@ $site_email = $site_email ?? 'contact@yoursite.com';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice #<?= htmlspecialchars($order['order_number']) ?> - <?=$site_name?></title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Cormorant+Garamond:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #F3F4F6; }
+        body { font-family: 'Lato', sans-serif; background-color: #F3F4F6; }
         .invoice-container { max-width: 800px; margin: 2rem auto; background-color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1); }
-        .invoice-header h1 { font-family: 'Cormorant Garamond', serif; }
+        .invoice-header h1 { font-family: ['Playfair Display', serif; }
         @media print {
             body { background-color: white; }
             .no-print { display: none; }

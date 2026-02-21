@@ -288,9 +288,9 @@ $jsCountryShippingFees = json_encode($allCountryShippingFees);
 <title><?=$site_name?> | Checkout</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-text': '#1A1A1A', 'brand-gray': '#6B7280', }, fontFamily: { 'sans': ['Inter', 'ui-sans-serif', 'system-ui'], 'serif': ['Cormorant Garamond', 'serif'], } } } };
+tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-text': '#1A1A1A', 'brand-gray': '#6B7280', }, fontFamily: { 'sans': ['Lato', 'ui-sans-serif', 'system-ui'], 'serif': ['Playfair Display', 'serif'], } } } };
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/feather-icons"></script>
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
@@ -300,8 +300,8 @@ tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-t
 .form-input-sleek:focus { outline: none; border-bottom-color: #1A1A1A; }
 /* Style for select dropdown arrow */
 select.form-input-sleek { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
-.step-header { display: flex; align-items: center; gap: 0.75rem; font-size: 1.25rem; font-family: 'Cormorant Garamond', serif; font-weight: 600; margin-bottom: 1.5rem; }
-.step-header .step-circle { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background-color: #1A1A1A; color: white; font-size: 0.875rem; font-weight: bold; font-family: 'Inter', sans-serif; }
+.step-header { display: flex; align-items: center; gap: 0.75rem; font-size: 1.25rem; font-family: ['Playfair Display', serif; font-weight: 600; margin-bottom: 1.5rem; }
+.step-header .step-circle { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background-color: #1A1A1A; color: white; font-size: 0.875rem; font-weight: bold; font-family: 'Lato', sans-serif; }
 .toastify { padding: 12px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; }
 .hidden { display: none; }
 </style>

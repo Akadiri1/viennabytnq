@@ -116,7 +116,7 @@ $totalProducts = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             theme: {
                 extend: {
                     colors: { 'brand-bg': '#F9F6F2', 'brand-text': '#1A1A1A', 'brand-gray': '#6B7280', 'brand-red': '#EF4444', },
-                    fontFamily: { 'sans': ['Inter', 'ui-sans-serif', 'system-ui'], 'serif': ['Cormorant Garamond', 'serif'], }
+                    fontFamily: { 'sans': ['Lato', 'ui-sans-serif', 'system-ui'], 'serif': ['Playfair Display', 'serif'], }
                 }
             }
         }
@@ -125,7 +125,7 @@ $totalProducts = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
     <!-- Google Fonts in <head> for immediate availability -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
 
     <script>
         // --- CRITICAL: Define Image Handler ---
@@ -317,12 +317,14 @@ $totalProducts = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             height: fit-content;
             max-height: calc(100vh - 100px);
             overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: #d1d5db transparent;
+            /* Hide scrollbar completely but allow scrolling */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
-        .shop-sidebar::-webkit-scrollbar { width: 3px; }
-        .shop-sidebar::-webkit-scrollbar-track { background: transparent; }
-        .shop-sidebar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+        .shop-sidebar::-webkit-scrollbar { 
+            display: none; 
+            width: 0; 
+        }
 
         /* Mobile sidebar overlay */
         #mobile-filter-overlay {
@@ -407,162 +409,46 @@ $totalProducts = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
 </header>
 
 <!-- ===== SHOP HERO / BREADCRUMB ===== -->
+<section class="pt-16 pb-12 bg-brand-bg text-center relative overflow-hidden">
+    <!-- Subtle background accent to make it feel premium -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-white opacity-40 rounded-[100%] blur-[80px] pointer-events-none"></div>
 
-
-<section class="shop-hero-split">
-
-    <!-- LEFT — text panel -->
-    <div class="hero-text-panel">
-
-        <!-- tiny eyebrow label -->
-        <p class="hero-eyebrow hero-fade-in" style="animation-delay:0.05s;">Collection</p>
-
-        <!-- Breadcrumb -->
-        <nav aria-label="Breadcrumb" class="hero-fade-in" style="animation-delay:0.12s;">
-            <ol class="hero-breadcrumb">
-                <li><a href="/home">Home</a></li>
-                <li>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                        <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Shop</span>
+    <div class="container mx-auto px-4 relative z-10">
+        <!-- Minimal Breadcrumb -->
+        <nav aria-label="Breadcrumb" class="mb-8 flex justify-center fade-in-up" style="animation-delay: 0.1s;">
+            <ol class="flex items-center space-x-3 text-[10px] font-bold tracking-[0.2em] uppercase text-brand-gray">
+                <li><a href="/home" class="hover:text-brand-text transition-all duration-300">Home</a></li>
+                <li class="flex items-center">
+                    <i data-feather="chevron-right" class="w-3 h-3 text-gray-300 mx-1"></i>
                 </li>
+                <li class="text-brand-text">Shop</li>
             </ol>
         </nav>
 
-        <!-- Main heading -->
-        <h1 class="hero-title hero-fade-in" style="animation-delay:0.22s;">
-            <?= htmlspecialchars($productBreadcrumb[0]['input_title'] ?? 'Our Collection') ?>
+        <!-- Elegant Serif Title -->
+        <h1 class="text-4xl md:text-6xl font-serif text-brand-text mb-6 tracking-tight fade-in-up" style="animation-delay: 0.2s;">
+            <?= htmlspecialchars($productBreadcrumb[0]['input_title'] ?? 'The Collection') ?>
         </h1>
+        
+        <!-- Short Decorative Divider -->
+        <div class="w-12 h-0.5 bg-brand-text/20 mx-auto mb-6 fade-in-up" style="animation-delay: 0.3s;"></div>
 
-        <!-- Accent rule -->
-        <div class="hero-rule hero-fade-in" style="animation-delay:0.34s;"></div>
-
-        <!-- Subtle caption -->
-        <p class="hero-caption hero-fade-in" style="animation-delay:0.44s;">
+        <!-- Sophisticated Description -->
+        <p class="text-xs tracking-widest uppercase text-brand-gray max-w-lg mx-auto leading-relaxed fade-in-up" style="animation-delay: 0.4s;">
             Discover our latest arrivals, curated with care.
         </p>
-
     </div>
-
-    <!-- RIGHT — image panel -->
-    <div class="hero-img-panel">
-        <div class="hero-img-inner"
-             style="background-image: url('<?= htmlspecialchars($productBreadcrumb[0]['input_image'] ?? '') ?>');">
-        </div>
-    </div>
-
 </section>
 
 <style>
-    /* ── Split layout ─── */
-    .shop-hero-split {
-        display: flex;
-        height: clamp(320px, 50vh, 560px);
+    /* Simple animation for the new hero elements */
+    @keyframes fadeInUpShop {
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
     }
-    .hero-text-panel {
-        flex: 0 0 50%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        padding: clamp(2rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
-        background: var(--color-bg, #F9F6F2);
-        position: relative;
-        overflow: hidden;
-    }
-    /* subtle decorative circle behind text */
-    .hero-text-panel::before {
-        content: '';
-        position: absolute;
-        right: -80px; top: -80px;
-        width: 300px; height: 300px;
-        border-radius: 50%;
-        background: rgba(0,0,0,0.03);
-        pointer-events: none;
-    }
-    .hero-img-panel {
-        flex: 0 0 50%;
-        overflow: hidden;
-        position: relative;
-    }
-    .hero-img-inner {
-        width: 100%; height: 100%;
-        background-size: cover;
-        background-position: center;
-        transform: scale(1.04);
-        transition: transform 8s ease-out;
-    }
-    .hero-img-panel:hover .hero-img-inner {
-        transform: scale(1.0);
-    }
-
-    /* ── Typography ─── */
-    .hero-eyebrow {
-        font-size: 0.65rem;
-        font-weight: 600;
-        letter-spacing: 0.25em;
-        text-transform: uppercase;
-        color: #a0a0a0;
-        margin-bottom: 1rem;
-    }
-    .hero-breadcrumb {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        list-style: none;
-        padding: 0;
-        font-size: 0.72rem;
-        font-weight: 500;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: #999;
-        margin-bottom: 1.6rem;
-    }
-    .hero-breadcrumb li { display: flex; align-items: center; gap: 0.4rem; }
-    .hero-breadcrumb a { color: #999; transition: color 0.2s; }
-    .hero-breadcrumb a:hover { color: #1a1a1a; }
-    .hero-breadcrumb span { color: #1a1a1a; }
-
-    .hero-title {
-        font-family: var(--font-serif, Georgia, serif);
-        font-size: clamp(2.4rem, 5.5vw, 4.8rem);
-        font-weight: 600;
-        line-height: 1.0;
-        letter-spacing: -0.02em;
-        color: #1a1a1a;
-        margin: 0 0 1.4rem;
-    }
-    .hero-rule {
-        width: 40px; height: 2px;
-        background: #1a1a1a;
-        margin-bottom: 1.2rem;
-    }
-    .hero-caption {
-        font-size: 0.82rem;
-        color: #888;
-        letter-spacing: 0.02em;
-        line-height: 1.6;
-        max-width: 28ch;
-    }
-
-    /* ── Animations ─── */
-    @keyframes heroFadeUp {
-        from { opacity: 0; transform: translateY(16px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-    .hero-fade-in {
+    .fade-in-up {
         opacity: 0;
-        animation: heroFadeUp 0.65s ease forwards;
-    }
-
-    /* ── Mobile: stack vertically ─── */
-    @media (max-width: 767px) {
-        .shop-hero-split {
-            flex-direction: column;
-            height: auto;
-        }
-        .hero-text-panel  { flex: none; padding: 2.5rem 1.5rem; }
-        .hero-img-panel   { flex: none; height: 220px; }
+        animation: fadeInUpShop 0.8s ease-out forwards;
     }
 </style>
 <!-- ===== END SHOP HERO ===== -->
@@ -620,6 +506,45 @@ $totalProducts = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
                 <button id="apply-price-filter-mobile" class="text-xs font-semibold bg-brand-text text-white px-5 py-2 rounded-lg hover:bg-gray-800 transition-colors">Apply</button>
             </div>
         </div>
+
+        <!-- View (mobile) -->
+        <div class="sidebar-section">
+            <span class="sidebar-label">View Layout</span>
+            <div class="flex items-center gap-2 mt-1">
+                <button id="grid-1col-mobile" title="1 column"
+                    class="p-2 rounded border border-gray-200 text-brand-gray hover:border-brand-text transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="1" y="2" width="14" height="4" rx="1"/>
+                        <rect x="1" y="10" width="14" height="4" rx="1"/>
+                    </svg>
+                </button>
+                <button id="grid-2col-mobile" title="2 columns"
+                    class="p-2 rounded border border-brand-text bg-brand-text text-white transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="1" y="1" width="6" height="6" rx="1"/>
+                        <rect x="9" y="1" width="6" height="6" rx="1"/>
+                        <rect x="1" y="9" width="6" height="6" rx="1"/>
+                        <rect x="9" y="9" width="6" height="6" rx="1"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Variants (mobile) -->
+        <?php if (!empty($allVariantNames)): ?>
+        <div class="sidebar-section">
+            <span class="sidebar-label">Variants</span>
+            <div id="variant-filter-container-mobile" class="flex flex-wrap gap-2 mt-2">
+                <?php foreach ($allVariantNames as $vname): ?>
+                <button class="variant-filter-btn text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-full transition-colors hover:border-brand-text hover:text-brand-text"
+                        data-variant="<?= htmlspecialchars($vname) ?>">
+                    <?= htmlspecialchars($vname) ?>
+                </button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
     </div>
 
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -1315,7 +1240,7 @@ $totalProducts = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             });
         });
 
-        // --- GRID VIEW TOGGLE ---
+        // --- GRID VIEW TOGGLE (Desktop) ---
         const grid2btn = document.getElementById('grid-2col');
         const grid3btn = document.getElementById('grid-3col');
 
@@ -1336,6 +1261,28 @@ $totalProducts = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
         }
         if (grid2btn) grid2btn.addEventListener('click', () => setGridCols(2));
         if (grid3btn) grid3btn.addEventListener('click', () => setGridCols(3));
+
+        // --- GRID VIEW TOGGLE (Mobile) ---
+        const grid1btnMob = document.getElementById('grid-1col-mobile');
+        const grid2btnMob = document.getElementById('grid-2col-mobile');
+
+        function setMobileGridCols(cols) {
+            const grid = document.getElementById('product-grid');
+            if (!grid || !grid1btnMob || !grid2btnMob) return;
+            const activeCls   = ['border-brand-text', 'bg-brand-text', 'text-white'];
+            const inactiveCls = ['border-gray-200', 'text-brand-gray'];
+            if (cols === 1) {
+                grid.classList.remove('grid-cols-2'); grid.classList.add('grid-cols-1');
+                grid1btnMob.classList.add(...activeCls);    grid1btnMob.classList.remove(...inactiveCls);
+                grid2btnMob.classList.remove(...activeCls); grid2btnMob.classList.add(...inactiveCls);
+            } else {
+                grid.classList.remove('grid-cols-1'); grid.classList.add('grid-cols-2');
+                grid2btnMob.classList.add(...activeCls);    grid2btnMob.classList.remove(...inactiveCls);
+                grid1btnMob.classList.remove(...activeCls); grid1btnMob.classList.add(...inactiveCls);
+            }
+        }
+        if (grid1btnMob) grid1btnMob.addEventListener('click', () => { setMobileGridCols(1); closeMobilePanel(); });
+        if (grid2btnMob) grid2btnMob.addEventListener('click', () => { setMobileGridCols(2); closeMobilePanel(); });
 
         document.querySelectorAll('.collection-filter-btn').forEach(button => {
             button.addEventListener('click', function (e) {

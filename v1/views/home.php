@@ -53,587 +53,7 @@ $videoText = $homeVideo[0]['video_text'];
     <meta property="og:image:width" content="3016">
     <meta property="og:image:height" content="4528">
     <!-- <link href="https://monorail-edge.shopifysvc.com/" rel="dns-prefetch"> -->
-    <script>
-      (function () {
-        if ("sendBeacon" in navigator && "performance" in window) {
-          var session_token = document.cookie.match(/_shopify_s=([^;]*)/);
-          function handle_abandonment_event(e) {
-            var entries = performance.getEntries().filter(function (entry) {
-              return /monorail-edge.shopifysvc.com/.test(entry.name);
-            });
-            if (!window.abandonment_tracked && entries.length === 0) {
-              window.abandonment_tracked = true;
-              var currentMs = Date.now();
-              var navigation_start = performance.timing.navigationStart;
-              var payload = {
-                shop_id: 74155000035,
-                url: window.location.href,
-                navigation_start,
-                duration: currentMs - navigation_start,
-                session_token:
-                  session_token && session_token.length === 2
-                    ? session_token[1]
-                    : "",
-                page_type: "index",
-              };
-              window.navigator.sendBeacon(
-                "https://monorail-edge.shopifysvc.com/v1/produce",
-                JSON.stringify({
-                  schema_id: "online_store_buyer_site_abandonment/1.1",
-                  payload: payload,
-                  metadata: {
-                    event_created_at_ms: currentMs,
-                    event_sent_at_ms: currentMs,
-                  },
-                })
-              );
-            }
-          }
-          window.addEventListener("pagehide", handle_abandonment_event);
-        }
-      })();
-    </script>
-    <script id="web-pixels-manager-setup">
-      (function e(e, d, r, n, o, i) {
-        if (
-          (void 0 === i && (i = {}),
-          !Boolean(
-            null ===
-              (t =
-                null === (a = window.Shopify) || void 0 === a
-                  ? void 0
-                  : a.analytics) || void 0 === t
-              ? void 0
-              : t.replayQueue
-          ))
-        ) {
-          var a, t;
-          window.Shopify = window.Shopify || {};
-          var s = window.Shopify;
-          s.analytics = s.analytics || {};
-          var l = s.analytics;
-          (l.replayQueue = []),
-            (l.publish = function (e, d, r) {
-              return l.replayQueue.push([e, d, r]), !0;
-            });
-          try {
-            self.performance.mark("wpm:start");
-          } catch (e) {}
-          var u = (function () {
-              var e = {
-                  modern:
-                    /Edge?\/(1{2}[4-9]|1[2-9]\d|[2-9]\d{2}|\d{4,})\.\d+(\.\d+|)|Firefox\/(1{2}[4-9]|1[2-9]\d|[2-9]\d{2}|\d{4,})\.\d+(\.\d+|)|Chrom(ium|e)\/(9{2}|\d{3,})\.\d+(\.\d+|)|(Maci|X1{2}).+ Version\/(15\.\d+|(1[6-9]|[2-9]\d|\d{3,})\.\d+)([,.]\d+|)( \(\w+\)|)( Mobile\/\w+|) Safari\/|Chrome.+OPR\/(9{2}|\d{3,})\.\d+\.\d+|(CPU[ +]OS|iPhone[ +]OS|CPU[ +]iPhone|CPU IPhone OS|CPU iPad OS)[ +]+(15[._]\d+|(1[6-9]|[2-9]\d|\d{3,})[._]\d+)([._]\d+|)|Android:?[ /-](13[3-9]|1[4-9]\d|[2-9]\d{2}|\d{4,})(\.\d+|)(\.\d+|)|Android.+Firefox\/(13[5-9]|1[4-9]\d|[2-9]\d{2}|\d{4,})\.\d+(\.\d+|)|Android.+Chrom(ium|e)\/(13[3-9]|1[4-9]\d|[2-9]\d{2}|\d{4,})\.\d+(\.\d+|)|SamsungBrowser\/([2-9]\d|\d{3,})\.\d+/,
-                  legacy:
-                    /Edge?\/(1[6-9]|[2-9]\d|\d{3,})\.\d+(\.\d+|)|Firefox\/(5[4-9]|[6-9]\d|\d{3,})\.\d+(\.\d+|)|Chrom(ium|e)\/(5[1-9]|[6-9]\d|\d{3,})\.\d+(\.\d+|)([\d.]+$|.*Safari\/(?![\d.]+ Edge\/[\d.]+$))|(Maci|X1{2}).+ Version\/(10\.\d+|(1[1-9]|[2-9]\d|\d{3,})\.\d+)([,.]\d+|)( \(\w+\)|)( Mobile\/\w+|) Safari\/|Chrome.+OPR\/(3[89]|[4-9]\d|\d{3,})\.\d+\.\d+|(CPU[ +]OS|iPhone[ +]OS|CPU[ +]iPhone|CPU IPhone OS|CPU iPad OS)[ +]+(10[._]\d+|(1[1-9]|[2-9]\d|\d{3,})[._]\d+)([._]\d+|)|Android:?[ /-](13[3-9]|1[4-9]\d|[2-9]\d{2}|\d{4,})(\.\d+|)(\.\d+|)|Mobile Safari.+OPR\/([89]\d|\d{3,})\.\d+\.\d+|Android.+Firefox\/(13[5-9]|1[4-9]\d|[2-9]\d{2}|\d{4,})\.\d+(\.\d+|)|Android.+Chrom(ium|e)\/(13[3-9]|1[4-9]\d|[2-9]\d{2}|\d{4,})\.\d+(\.\d+|)|Android.+(UC? ?Browser|UCWEB|U3)[ /]?(15\.([5-9]|\d{2,})|(1[6-9]|[2-9]\d|\d{3,})\.\d+)\.\d+|SamsungBrowser\/(5\.\d+|([6-9]|\d{2,})\.\d+)|Android.+MQ{2}Browser\/(14(\.(9|\d{2,})|)|(1[5-9]|[2-9]\d|\d{3,})(\.\d+|))(\.\d+|)|K[Aa][Ii]OS\/(3\.\d+|([4-9]|\d{2,})\.\d+)(\.\d+|)/,
-                },
-                d = e.modern,
-                r = e.legacy,
-                n = navigator.userAgent;
-              return n.match(d) ? "modern" : n.match(r) ? "legacy" : "unknown";
-            })(),
-            c = "modern" === u ? "modern" : "legacy",
-            f = (null != o ? o : { modern: "", legacy: "" })[c],
-            m = (function (e) {
-              return [
-                e.baseUrl,
-                "/wpm",
-                "/b",
-                e.hashVersion,
-                "modern" === e.buildTarget ? "m" : "l",
-                ".js",
-              ].join("");
-            })({ baseUrl: r, hashVersion: n, buildTarget: c }),
-            p = (function (e) {
-              var d = e.version,
-                r = e.bundleTarget,
-                n = e.surface,
-                o = e.pageUrl,
-                i = e.monorailEndpoint;
-              return {
-                emit: function (e) {
-                  var a = e.status,
-                    t = e.errorMsg,
-                    s = new Date().getTime(),
-                    l = JSON.stringify({
-                      metadata: { event_sent_at_ms: s },
-                      events: [
-                        {
-                          schema_id: "web_pixels_manager_load/3.1",
-                          payload: {
-                            version: d,
-                            bundle_target: r,
-                            page_url: o,
-                            status: a,
-                            surface: n,
-                            error_msg: t,
-                          },
-                          metadata: { event_created_at_ms: s },
-                        },
-                      ],
-                    });
-                  if (!i)
-                    return (
-                      console &&
-                        console.warn &&
-                        console.warn(
-                          "[Web Pixels Manager] No Monorail endpoint provided, skipping logging."
-                        ),
-                      !1
-                    );
-                  try {
-                    return self.navigator.sendBeacon.bind(self.navigator)(i, l);
-                  } catch (e) {}
-                  var u = new XMLHttpRequest();
-                  try {
-                    return (
-                      u.open("POST.html", i, !0),
-                      u.setRequestHeader("Content-Type", "text/plain"),
-                      u.send(l),
-                      !0
-                    );
-                  } catch (e) {
-                    return (
-                      console &&
-                        console.warn &&
-                        console.warn(
-                          "[Web Pixels Manager] Got an unhandled error while logging to Monorail."
-                        ),
-                      !1
-                    );
-                  }
-                },
-              };
-            })({
-              version: n,
-              bundleTarget: u,
-              surface: e.surface,
-              pageUrl: self.location.href,
-              monorailEndpoint: e.monorailEndpoint,
-            });
-          try {
-            (i.browserTarget = u),
-              (function (e) {
-                var d = e.src,
-                  r = e.async,
-                  n = void 0 === r || r,
-                  o = e.onload,
-                  i = e.onerror,
-                  a = e.sri,
-                  t = e.scriptDataAttributes,
-                  s = void 0 === t ? {} : t,
-                  l = document.createElement("script"),
-                  u = document.querySelector("head"),
-                  c = document.querySelector("body");
-                if (
-                  ((l.async = n),
-                  (l.src = d),
-                  a && ((l.integrity = a), (l.crossOrigin = "anonymous")),
-                  s)
-                )
-                  for (var f in s)
-                    if (Object.prototype.hasOwnProperty.call(s, f))
-                      try {
-                        l.dataset[f] = s[f];
-                      } catch (e) {}
-                if (
-                  (o && l.addEventListener("load", o),
-                  i && l.addEventListener("error", i),
-                  u)
-                )
-                  u.appendChild(l);
-                else {
-                  if (!c)
-                    throw new Error(
-                      "Did not find a head or body element to append the script"
-                    );
-                  c.appendChild(l);
-                }
-              })({
-                src: m,
-                async: !0,
-                onload: function () {
-                  if (
-                    !(function () {
-                      var e, d;
-                      return Boolean(
-                        null ===
-                          (d =
-                            null === (e = window.Shopify) || void 0 === e
-                              ? void 0
-                              : e.analytics) || void 0 === d
-                          ? void 0
-                          : d.initialized
-                      );
-                    })()
-                  ) {
-                    var r = window.webPixelsManager.init(e) || void 0;
-                    if (r) {
-                      d(r);
-                      var n = window.Shopify.analytics;
-                      n.replayQueue.forEach(function (e) {
-                        var d = e[0],
-                          n = e[1],
-                          o = e[2];
-                        r.publishCustomEvent(d, n, o);
-                      }),
-                        (n.replayQueue = []),
-                        (n.publish = r.publishCustomEvent),
-                        (n.visitor = r.visitor),
-                        (n.initialized = !0);
-                    }
-                  }
-                },
-                onerror: function () {
-                  return p.emit({
-                    status: "failed",
-                    errorMsg: "".concat(m, " has failed to load"),
-                  });
-                },
-                sri: (function (e) {
-                  var d = /^sha384-[A-Za-z0-9+/=]+$/;
-                  return "string" == typeof e && d.test(e);
-                })(f)
-                  ? f
-                  : "",
-                scriptDataAttributes: i,
-              }),
-              p.emit({ status: "loading" });
-          } catch (e) {
-            p.emit({
-              status: "failed",
-              errorMsg: (null == e ? void 0 : e.message) || "Unknown error",
-            });
-          }
-        }
-      })(
-        {
-          shopId: 74155000035,
-          storefrontBaseUrl: "https://VIENNA-RTW.co",
-          extensionsBaseUrl:
-            "https://extensions.shopifycdn.com/cdn/shopifycloud/web-pixels-manager",
-          monorailEndpoint:
-            "https://monorail-edge.shopifysvc.com/unstable/produce_batch",
-          surface: "storefront-renderer",
-          enabledBetaFlags: ["ac843a20"],
-          webPixelsConfigList: [
-            {
-              id: "1004568803",
-              configuration:
-                '{"pixel_id":"1061724202631906","pixel_type":"facebook_pixel"}',
-              eventPayloadVersion: "v1",
-              runtimeContext: "OPEN",
-              scriptVersion: "6d8c3ef0426b37b2a9b717daeb719f58",
-              type: "APP",
-              apiClientId: 2329312,
-              privacyPurposes: ["ANALYTICS", "MARKETING", "SALE_OF_DATA"],
-            },
-            {
-              id: "945651939",
-              configuration: '{"accountID":"S4WJnH"}',
-              eventPayloadVersion: "v1",
-              runtimeContext: "STRICT",
-              scriptVersion: "cbf4a80740670c5ae93d33dc67925b9a",
-              type: "APP",
-              apiClientId: 123074,
-              privacyPurposes: ["ANALYTICS", "MARKETING"],
-            },
-            {
-              id: "shopify-app-pixel",
-              configuration: "{}",
-              eventPayloadVersion: "v1",
-              runtimeContext: "STRICT",
-              scriptVersion: "0440",
-              apiClientId: "shopify-pixel",
-              type: "APP",
-              privacyPurposes: ["ANALYTICS", "MARKETING"],
-            },
-            {
-              id: "shopify-custom-pixel",
-              eventPayloadVersion: "v1",
-              runtimeContext: "LAX",
-              scriptVersion: "0440",
-              apiClientId: "shopify-pixel",
-              type: "CUSTOM",
-              privacyPurposes: ["ANALYTICS", "MARKETING"],
-            },
-          ],
-          isMerchantRequest: false,
-          initData: {
-            shop: {
-              name: "VIENNA-RTW US",
-              paymentSettings: { currencyCode: "USD" },
-              myshopifyDomain: "VIENNA-RTW-us.myshopify.com",
-              countryCode: "GB",
-              storefrontUrl: "https://VIENNA-RTW.co",
-            },
-            customer: null,
-            cart: null,
-            checkout: null,
-            productVariants: [],
-            purchasingCompany: null,
-          },
-        },
-        function pageEvents(webPixelsManagerAPI) {
-          webPixelsManagerAPI.publish("page_viewed", {});
-        },
-        "cdn.html",
-        "aa986369w89f019d8pedb14a83mf698ddc1",
-        { modern: "", legacy: "" },
-        {
-          shopId: "74155000035",
-          storefrontBaseUrl: "https://VIENNA-RTW.co",
-          extensionBaseUrl:
-            "https://extensions.shopifycdn.com/cdn/shopifycloud/web-pixels-manager",
-          surface: "storefront-renderer",
-          enabledBetaFlags: '["ac843a20"]',
-          isMerchantRequest: "false",
-          hashVersion: "aa986369w89f019d8pedb14a83mf698ddc1",
-          publish: "custom",
-        }
-      );
-    </script><script async="" src="cdn.html/wpm/baa986369w89f019d8pedb14a83mf698ddc1m.js" data-shop-id="74155000035" data-storefront-base-url="https://VIENNA-RTW.co" data-extension-base-url="https://extensions.shopifycdn.com/cdn/shopifycloud/web-pixels-manager" data-surface="storefront-renderer" data-enabled-beta-flags="[&quot;ac843a20&quot;]" data-is-merchant-request="false" data-hash-version="aa986369w89f019d8pedb14a83mf698ddc1" data-publish="custom" data-browser-target="modern"></script>
-    <script>
-      window.ShopifyAnalytics = window.ShopifyAnalytics || {};
-      window.ShopifyAnalytics.meta = window.ShopifyAnalytics.meta || {};
-      window.ShopifyAnalytics.meta.currency = "USD";
-      var meta = { page: { pageType: "home" } };
-      for (var attr in meta) {
-        window.ShopifyAnalytics.meta[attr] = meta[attr];
-      }
-    </script>
-    <script class="analytics">
-      (function () {
-        var customDocumentWrite = function (content) {
-          var jquery = null;
-
-          if (window.jQuery) {
-            jquery = window.jQuery;
-          } else if (window.Checkout && window.Checkout.$) {
-            jquery = window.Checkout.$;
-          }
-
-          if (jquery) {
-            jquery("body").append(content);
-          }
-        };
-
-        var hasLoggedConversion = function (token) {
-          if (token) {
-            return document.cookie.indexOf("loggedConversion=" + token) !== -1;
-          }
-          return false;
-        };
-
-        var setCookieIfConversion = function (token) {
-          if (token) {
-            var twoMonthsFromNow = new Date(Date.now());
-            twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
-
-            document.cookie =
-              "loggedConversion=" + token + "; expires=" + twoMonthsFromNow;
-          }
-        };
-
-        var trekkie =
-          (window.ShopifyAnalytics.lib =
-          window.trekkie =
-            window.trekkie || []);
-        if (trekkie.integrations) {
-          return;
-        }
-        trekkie.methods = [
-          "identify",
-          "page",
-          "ready",
-          "track",
-          "trackForm",
-          "trackLink",
-        ];
-        trekkie.factory = function (method) {
-          return function () {
-            var args = Array.prototype.slice.call(arguments);
-            args.unshift(method);
-            trekkie.push(args);
-            return trekkie;
-          };
-        };
-        for (var i = 0; i < trekkie.methods.length; i++) {
-          var key = trekkie.methods[i];
-          trekkie[key] = trekkie.factory(key);
-        }
-        trekkie.load = function (config) {
-          trekkie.config = config || {};
-          trekkie.config.initialDocumentCookie = document.cookie;
-          var first = document.getElementsByTagName("script")[0];
-          var script = document.createElement("script");
-          script.type = "text/javascript";
-          script.onerror = function (e) {
-            var scriptFallback = document.createElement("script");
-            scriptFallback.type = "text/javascript";
-            scriptFallback.onerror = function (error) {
-              var Monorail = {
-                produce: function produce(monorailDomain, schemaId, payload) {
-                  var currentMs = new Date().getTime();
-                  var event = {
-                    schema_id: schemaId,
-                    payload: payload,
-                    metadata: {
-                      event_created_at_ms: currentMs,
-                      event_sent_at_ms: currentMs,
-                    },
-                  };
-                  return Monorail.sendRequest(
-                    "https://" + monorailDomain + "/v1/produce",
-                    JSON.stringify(event)
-                  );
-                },
-                sendRequest: function sendRequest(endpointUrl, payload) {
-                  // Try the sendBeacon API
-                  if (
-                    window &&
-                    window.navigator &&
-                    typeof window.navigator.sendBeacon === "function" &&
-                    typeof window.Blob === "function" &&
-                    !Monorail.isIos12()
-                  ) {
-                    var blobData = new window.Blob([payload], {
-                      type: "text/plain",
-                    });
-
-                    if (window.navigator.sendBeacon(endpointUrl, blobData)) {
-                      return true;
-                    } // sendBeacon was not successful
-                  } // XHR beacon
-
-                  var xhr = new XMLHttpRequest();
-
-                  try {
-                    xhr.open("POST.html", endpointUrl);
-                    xhr.setRequestHeader("Content-Type", "text/plain");
-                    xhr.send(payload);
-                  } catch (e) {
-                    console.log(e);
-                  }
-
-                  return false;
-                },
-                isIos12: function isIos12() {
-                  return (
-                    window.navigator.userAgent.lastIndexOf(
-                      "iPhone; CPU iPhone OS 12_"
-                    ) !== -1 ||
-                    window.navigator.userAgent.lastIndexOf(
-                      "iPad; CPU OS 12_"
-                    ) !== -1
-                  );
-                },
-              };
-              Monorail.produce(
-                "monorail-edge.shopifysvc.com",
-                "trekkie_storefront_load_errors/1.1",
-                {
-                  shop_id: 74155000035,
-                  theme_id: 148522795235,
-                  app_name: "storefront",
-                  context_url: window.location.href,
-                  source_url:
-                    "//VIENNA-RTW.co/cdn/s/trekkie.storefront.85527fa5792f2e0cb2c2b51738712be68613edc8.min.js",
-                }
-              );
-            };
-            scriptFallback.async = true;
-            scriptFallback.src =
-              "cdn/s/trekkie.storefront.85527fa5792f2e0cb2c2b51738712be68613edc8.min.js";
-            first.parentNode.insertBefore(scriptFallback, first);
-          };
-          script.async = true;
-          script.src =
-            "cdn/s/trekkie.storefront.85527fa5792f2e0cb2c2b51738712be68613edc8.min.js";
-          first.parentNode.insertBefore(script, first);
-        };
-        trekkie.load({
-          Trekkie: {
-            appName: "storefront",
-            development: false,
-            defaultAttributes: {
-              shopId: 74155000035,
-              isMerchantRequest: null,
-              themeId: 148522795235,
-              themeCityHash: "14819533787138664124",
-              contentLanguage: "en",
-              currency: "USD",
-              eventMetadataId: "4108793a-f830-4e55-9ca1-6b83202299f7",
-            },
-            isServerSideCookieWritingEnabled: true,
-            monorailRegion: "shop_domain",
-          },
-          "Session Attribution": {},
-          S2S: {
-            facebookCapiEnabled: true,
-            source: "trekkie-storefront-renderer",
-            apiClientId: 580111,
-          },
-        });
-
-        var loaded = false;
-        trekkie.ready(function () {
-          if (loaded) return;
-          loaded = true;
-
-          window.ShopifyAnalytics.lib = window.trekkie;
-
-          var originalDocumentWrite = document.write;
-          document.write = customDocumentWrite;
-          try {
-            window.ShopifyAnalytics.merchantGoogleAnalytics.call(this);
-          } catch (error) {}
-          document.write = originalDocumentWrite;
-
-          window.ShopifyAnalytics.lib.page(null, {
-            pageType: "home",
-            shopifyEmitted: true,
-          });
-
-          var match = window.location.pathname.match(
-            /checkouts\/(.+)\/(thank_you|post_purchase)/
-          );
-          var token = match ? match[1] : undefined;
-          if (!hasLoggedConversion(token)) {
-            setCookieIfConversion(token);
-          }
-        });
-
-        var eventsListenerScript = document.createElement("script");
-        eventsListenerScript.async = true;
-        eventsListenerScript.src =
-          "cdn/shopifycloud/storefront/assets/shop_events_listener-8675b082.js";
-        document
-          .getElementsByTagName("head")[0]
-          .appendChild(eventsListenerScript);
-      })();
-    </script>
-    <script async="" src="cdn/shopifycloud/storefront/assets/shop_events_listener-8675b082.js"></script>
-    <script defer="" src="cdn/shopifycloud/perf-kit/shopify-perf-kit-1.6.6.min.js" data-application="storefront-renderer" data-shop-id="74155000035" data-render-region="gcp-europe-west1" data-page-type="index" data-theme-instance-id="148522795235" data-theme-name="VIENNA-RTW Shopify" data-theme-version="2.0.0" data-monorail-region="shop_domain" data-resource-timing-sampling-rate="10" data-shs="true"></script>
-  <style> .marquee-container { overflow: hidden; background-color: #000; color: #fff !important; padding: 5px 10px; font-size: 14px; font-weight: 300; width: 100%; z-index: 9999; }  .marquee-content { display: inline-block; white-space: nowrap; padding-left: 100%; will-change: transform; animation: marquee-scroll 40s linear infinite; }  .marquee-container:hover .marquee-content { animation-play-state: paused; }  @keyframes marquee-scroll { 0% { transform: translateX(0%); } 100% { transform: translateX(-100%); } } </style><script type="module" defer="" src="https://VIENNA-RTW.co/cdn/shopifycloud/media-analytics/v0.1/analytics.js"></script><link rel="dns-prefetch preconnect" href="https://cdn.shopify.com" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/polyfills-legacy.DTu4b8LP.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/app-legacy.D_DgBTLc.js" crossorigin=""><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><style></style><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/page-OnePage-legacy.DR5rHWbc.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/DeliveryMethodSelectorSection-legacy._-pINcGs.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/useEditorShopPayNavigation-legacy.FVUvl6Rf.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/VaultedPayment-legacy.D1cc4txL.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/LocalizationExtensionField-legacy.DPUrd3oE.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/ShopPayOptInDisclaimer-legacy.CoDqklHd.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/ShipmentBreakdown-legacy.BP-9GHWx.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/MerchandiseModal-legacy.Du24LH7p.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/StackedMerchandisePreview-legacy.CdkYOSFG.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/PayButtonSection-legacy.aHis-7dq.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/component-ShopPayVerificationSwitch-legacy.ZbO-2wCp.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/useSubscribeMessenger-legacy.MwcUof7v.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="script" href="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/index-legacy.DmeyDv1f.js" crossorigin=""><link rel="prefetch" fetchpriority="low" as="image" href="https://cdn.shopify.com/s/files/1/0741/5500/0035/files/VIENNA-RTW_icon_white_x320.png?v=1751488305" crossorigin="">    <script>
-    (function() {
-        if (window.history && window.history.replaceState) {
-            var url = new URL(window.location.href);
-            var params = new URLSearchParams(url.search);
-            var keysToRemove = ['fbclid', 'igshid', 'gclid', 'msclkid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'epik'];
-            var changed = false;
-            keysToRemove.forEach(function(key) {
-                if (params.has(key)) {
-                    params.delete(key);
-                    changed = true;
-                }
-            });
-            if (changed) {
-                var newUrl = url.pathname + (params.toString() ? '?' + params.toString() : '') + url.hash;
-                window.history.replaceState({path: newUrl}, '', newUrl);
-            }
-        }
-    })();
-    </script>
+    <style> .marquee-container { overflow: hidden; background-color: #000; color: #fff !important; padding: 5px 10px; font-size: 14px; font-weight: 300; width: 100%; z-index: 9999; }  .marquee-content { display: inline-block; white-space: nowrap; padding-left: 100%; will-change: transform; animation: marquee-scroll 40s linear infinite; }  .marquee-container:hover .marquee-content { animation-play-state: paused; }  @keyframes marquee-scroll { 0% { transform: translateX(0%); } 100% { transform: translateX(-100%); } } </style>
 </head>
  
   <body id="VIENNA-RTW-fashion-exclusive-collections-for-every-occasion" class="home template-index" data-header="1">
@@ -816,12 +236,8 @@ body.preloading {
                   </div> --> 
                 </div>
                 <a href="/home" aria-label="VIENNA-RTW US" class="logo-slogan">
-                    <!-- We removed the incorrect "color" style and added the CSS filter -->
-                    <img 
-                      src="<?=$logo_directory?>" 
-                      alt="VIENNA-RTW US" 
-                      style="max-width: 140px; height: auto; filter: brightness(0) invert(1);">
-                    <span>VIENNA BY TNQ</span>
+                    <img src="<?=$logo_directory?>" alt="VIENNA-RTW US" class="brand-logo">
+                    <!-- <span>VIENNA BY TNQ</span> -->
                   </a>
                   <?php
 // Start the session to remember the user's choice on the server
@@ -971,9 +387,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="mx-1">/</span>
                         <a href="#" class="currency-link <?= ($current_currency === 'USD') ? 'active' : '' ?>" data-currency="USD">USD</a>
                     </li>
-                    <li class="header-account mr-4" style="display:inline-block;">
-                         <a href="<?= isset($_SESSION['user_id']) ? '/user-dashboard' : '/register' ?>" title="<?= isset($_SESSION['user_id']) ? 'My Account' : 'Login / Register' ?>" style="color:white; font-size: 14px; font-weight: 500;">
-                            <i class="fa fa-user"></i> <?= isset($_SESSION['user_id']) ? 'Account' : 'Login' ?>
+                    <li class="header-account">
+                         <a href="<?= isset($_SESSION['user_id']) ? '/user-dashboard' : '/register' ?>" title="<?= isset($_SESSION['user_id']) ? 'My Account' : 'Login / Register' ?>">
+                            <i class="fa fa-user"></i> <span><?= isset($_SESSION['user_id']) ? 'Account' : 'Login' ?></span>
                         </a>
                     </li>
                     <!-- End of Currency Switcher -->
@@ -981,114 +397,116 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
               </div>
               <style>
-                .controls-container {
-                  position: fixed;
-                  right: 10px;
-                  z-index: 999;
-                }
-                .header-nav-desktop {
-                  cursor: pointer;
-                  z-index: 999;
-                  position: fixed;
-                }
-                .desktop-navigation {
-                  width: 50px;
-                  height: 35px;
-                  align-self: center;
-                  text-align: center;
-                  justify-content: center;
-                  display: flex;
-                  align-items: center;
-                }
+                /* Premium Header Redesign */
                 #main-site-header {
-                  position: fixed;
+                  position: absolute;
+                  top: 0;
                   left: 0;
-                  right: 0;
                   width: 100%;
                   display: flex;
                   align-items: center;
-                  padding: 10px;
                   justify-content: space-between;
-                  top: 0px;
-                  height: 90px;
-                  background-color: white;
-                  padding-bottom: 25px;
-                }
-                .home #main-site-header {
+                  padding: 25px 50px;
+                  z-index: 1000;
                   background-color: transparent;
                 }
                 .logo-slogan {
-                  position: fixed;
                   display: flex;
-                  flex-direction: column;
                   align-items: center;
-                  color: white;
-                  width: 180px;
-                  align-self: center;
-                  width: 100%;
+                  gap: 15px;
+                  text-decoration: none;
                 }
-                .logo-slogan img {
-                  filter: brightness(0) invert(0);
-                  max-width: 70px !important;
-                  margin-top: 15px;
+                .logo-slogan img.brand-logo {
+                  max-width: 55px !important;
+                  height: auto;
+                  filter: brightness(0) invert(1);
+                  transition: transform 0.3s ease;
                 }
                 .logo-slogan span {
-                  color: fff;
+                  color: #ffffff;
+                  font-family: 'Playfair Display', serif;
+                  font-size: 1.35rem;
+                  letter-spacing: 2px;
+                  font-weight: 600;
+                  text-transform: uppercase;
+                  text-shadow: 0px 1px 3px rgba(0,0,0,0.3);
+                }
+                .controls-container {
+                  display: flex;
+                  align-items: center;
+                }
+                .header-control {
+                  display: flex;
+                  align-items: center;
+                  gap: 30px;
+                  margin: 0;
+                  padding: 0;
+                  list-style: none;
+                }
+                .currency-switcher {
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  color: rgba(255,255,255,0.8);
+                  font-size: 0.9rem;
+                }
+                .currency-switcher a.currency-link {
+                  color: rgba(255,255,255,0.7);
+                  font-weight: 400;
+                  font-family: 'Lato', sans-serif;
+                  transition: all 0.2s ease;
+                }
+                .currency-switcher a.currency-link:hover {
+                  color: #ffffff;
+                  text-decoration: none;
+                }
+                .currency-switcher a.currency-link.active {
+                  color: #ffffff;
+                  font-weight: 700;
+                  border-bottom: 2px solid #ffffff;
+                  padding-bottom: 2px;
+                }
+                .header-account a {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  color: #ffffff !important;
+                  font-size: 0.95rem !important;
+                  font-family: 'Lato', sans-serif;
+                  font-weight: 600 !important;
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                  transition: opacity 0.2s ease;
+                }
+                .header-account a:hover {
+                  opacity: 0.8;
+                  text-decoration: none;
+                }
+                .header-account i {
+                  font-size: 1.2rem;
                 }
                 .main {
-                  transform: none;
-                  padding-top: 150px;
-                }
-                .home .logo-slogan img {
-                  filter: brightness(0) invert(1);
-                }
-                .home .logo-slogan span {
-                  color: white;
-                }
-                .home .main {
                   padding-top: 0;
                 }
-                .header-nav-desktop svg {
-                  fill: fff;
-                  width: 32px !important;
-                  height: 32px !important;
-                }
-                .header-nav-desktop {
-                  fill: white;
-                  width: 32px;
-                  height: 32px;
-                }
-                .home .header-nav-desktop svg {
-                  fill: white;
-                  width: 32px;
-                  height: 32px;
-                }
-                .home #main-site-header i {
-                  fill: white;
-                  color: white;
-                }
-                #main-site-header i {
-                  color: fff;
-                }
-                #mobile_menu .laber_mb_menu .menu-item {
-                  border: none;
-                  position: relative;
-                }
-                #mobile_menu .laber_mb_menu .menu-item .collapse {
-                  line-height: 25px;
-                  height: 25px;
-                }
-                #mobile_menu .laber_mb_menu .menu-item a {
-                  position: relative;
-                  font-size: 10px;
-                  height: 25px;
-                }
-                .header .header-icon svg {
-                  width: 26px;
-                  fill: fff !important;
-                }
-                .home .header .header-icon svg {
-                  fill: white !important;
+
+                /* Mobile Responsive */
+                @media (max-width: 768px) {
+                  #main-site-header {
+                    padding: 15px 20px;
+                  }
+                  .logo-slogan span {
+                    font-size: 1.1rem;
+                    letter-spacing: 1px;
+                  }
+                  .logo-slogan img.brand-logo {
+                    max-width: 45px !important;
+                  }
+                  .header-control {
+                    gap: 15px;
+                  }
+                  .header-account span {
+                    display: none; /* Hide 'Account' text on mobile, just show icon */
+                  }
                 }
               </style>
             </div>

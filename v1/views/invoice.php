@@ -58,7 +58,7 @@ $shippingDetails = json_decode($order['shipping_address'], true);
             .no-print { display: none; }
             .page-break { page-break-inside: avoid; }
         }
-        body { font-family: 'Inter', sans-serif; color: #1f2937; }
+        body { font-family: 'Lato', sans-serif; color: #1f2937; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-8">

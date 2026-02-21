@@ -35,15 +35,15 @@ $site_name = $site_name ?? 'Your Site Name';
 <title><?=$site_name?> | Checkout</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-text': '#1A1A1A', 'brand-gray': '#6B7280', }, fontFamily: { 'sans': ['Inter', 'ui-sans-serif', 'system-ui'], 'serif': ['Cormorant Garamond', 'serif'], } } } };
+tailwind.config = { theme: { extend: { colors: { 'brand-bg': '#F9F6F2', 'brand-text': '#1A1A1A', 'brand-gray': '#6B7280', }, fontFamily: { 'sans': ['Lato', 'ui-sans-serif', 'system-ui'], 'serif': ['Playfair Display', 'serif'], } } } };
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/feather-icons"></script>
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 <style>
-.form-input-sleek { background-color: transparent; border: 0; border-bottom: 1px solid #d1d5db; border-radius: 0; padding: 0.75rem 0.25rem; width: 100%; transition: border-color 0.2s; } .form-input-sleek:focus { outline: none; box-shadow: none; ring: 0; border-bottom-color: #1A1A1A; } .step-header { display: flex; align-items: center; gap: 0.75rem; font-size: 1.25rem; font-family: 'Cormorant Garamond', serif; font-weight: 600; margin-bottom: 1.5rem; } .step-header .step-circle { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background-color: #1A1A1A; color: white; font-size: 0.875rem; font-weight: bold; font-family: 'Inter', sans-serif; }
+.form-input-sleek { background-color: transparent; border: 0; border-bottom: 1px solid #d1d5db; border-radius: 0; padding: 0.75rem 0.25rem; width: 100%; transition: border-color 0.2s; } .form-input-sleek:focus { outline: none; box-shadow: none; ring: 0; border-bottom-color: #1A1A1A; } .step-header { display: flex; align-items: center; gap: 0.75rem; font-size: 1.25rem; font-family: ['Playfair Display', serif; font-weight: 600; margin-bottom: 1.5rem; } .step-header .step-circle { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background-color: #1A1A1A; color: white; font-size: 0.875rem; font-weight: bold; font-family: 'Lato', sans-serif; }
 .toastify { padding: 12px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; box-shadow: 0 3px 6px -1px rgba(0,0,0,.12), 0 10px 36px -4px rgba(51,45,45,.25); }
 </style>
 </head>

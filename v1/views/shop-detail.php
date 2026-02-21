@@ -127,17 +127,28 @@ try {
 
 
 $relatedProducts = [];
+$fetchedIds = [$id]; // always exclude current product
 if (!empty($singleProduct['collection_id'])) {
     $relatedProductsQuery = "SELECT * FROM panel_products WHERE visibility = 'show' AND id != ? AND collection_id = ? ORDER BY RAND() LIMIT 4";
     $relatedStmt = $conn->prepare($relatedProductsQuery);
     $relatedStmt->execute([$id, $singleProduct['collection_id']]);
     $relatedProducts = $relatedStmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Add these IDs to the exclusion list
+    foreach ($relatedProducts as $p) {
+        $fetchedIds[] = $p['id'];
+    }
 }
 if (count($relatedProducts) < 4) {
     $limit = 4 - count($relatedProducts);
-    $fallbackQuery = "SELECT * FROM panel_products WHERE visibility = 'show' AND id != ? ORDER BY RAND() LIMIT $limit";
+    
+    // Create placeholders for the NOT IN clause
+    $placeholders = implode(',', array_fill(0, count($fetchedIds), '?'));
+    $fallbackQuery = "SELECT * FROM panel_products WHERE visibility = 'show' AND id NOT IN ($placeholders) ORDER BY RAND() LIMIT $limit";
     $fallbackStmt = $conn->prepare($fallbackQuery);
-    $fallbackStmt->execute([$id]);
+    
+    // The parameters are just the array of fetchedIds (which includes the current product ID)
+    $fallbackStmt->execute($fetchedIds);
     $relatedProducts = array_merge($relatedProducts, $fallbackStmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
@@ -245,9 +256,9 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
     <title><?= htmlspecialchars($singleProduct['name']) ?> - <?=$site_name?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = { theme: { extend: { colors: { "brand-bg": "#F9F6F2", "brand-text": "#1A1A1A", "brand-gray": "#6B7280", "brand-red": "#EF4444", }, fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui"], serif: ["Cormorant Garamond", "serif"], }, }, }, };
+        tailwind.config = { theme: { extend: { colors: { "brand-bg": "#F9F6F2", "brand-text": "#1A1A1A", "brand-gray": "#6B7280", "brand-red": "#EF4444", }, fontFamily: { sans: ["Lato", "ui-sans-serif", "system-ui"], serif: ["Playfair Display", "serif"], }, }, }, };
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/feather-icons"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
@@ -360,19 +371,47 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
     <!-- MAIN CONTENT -->
     <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 xl:gap-x-16 gap-y-10">
-            <div class="flex flex-col md:flex-row-reverse gap-4">
-                <div class="flex-1">
-                    <div class="skeleton-container rounded-lg aspect-[4/5]">
-                        <img id="main-product-image" src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="skeleton-img w-full h-full object-cover rounded-lg opacity-0" loading="eager" decoding="async" onload="handleImageLoad(this)"/>
+            <div class="flex flex-col gap-4">
+                <!-- Main Image Slider -->
+                <div class="w-full relative group">
+                    <div id="main-image-slider" class="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar cursor-grab active:cursor-grabbing rounded-sm" style="scrollbar-width: none; -ms-overflow-style: none;">
+                        <style>#main-image-slider::-webkit-scrollbar { display: none; }</style>
+                        
+                        <!-- First Image -->
+                        <div class="w-full shrink-0 snap-center relative" style="padding-top: 133.33%;">
+                            <div class="skeleton-container absolute inset-0 bg-[#f9f9f9] overflow-hidden">
+                                <img src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="slider-img skeleton-img object-cover w-full h-full opacity-0 pointer-events-none select-none transition-opacity duration-500" loading="eager" decoding="async" onload="handleImageLoad(this)"/>
+                            </div>
+                        </div>
+                        
+                        <!-- Subsequent Images -->
+                        <?php foreach ($productImages as $image): ?>
+                        <div class="w-full shrink-0 snap-center relative" style="padding-top: 133.33%;">
+                            <div class="skeleton-container absolute inset-0 bg-[#f9f9f9] overflow-hidden">
+                                <img src="/<?= htmlspecialchars($image['image_path']) ?>" alt="<?= htmlspecialchars($image['alt_text'] ?? $singleProduct['name']) ?>" class="slider-img skeleton-img object-cover w-full h-full opacity-0 pointer-events-none select-none transition-opacity duration-500" loading="lazy" decoding="async" onload="handleImageLoad(this)"/>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
+                    
+                    <!-- Navigation Arrows -->
+                    <?php if (count($productImages) > 0): ?>
+                    <button id="slider-prev" class="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 text-brand-text shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10" aria-label="Previous image">
+                        <i data-feather="chevron-left" class="w-5 h-5"></i>
+                    </button>
+                    <button id="slider-next" class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 text-brand-text shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10" aria-label="Next image">
+                        <i data-feather="chevron-right" class="w-5 h-5"></i>
+                    </button>
+                    <?php endif; ?>
                 </div>
-                <div id="thumbnail-gallery" class="flex flex-row md:flex-col gap-3 overflow-x-auto md:overflow-y-auto md:max-h-[580px] scrollbar-thin pb-2 md:pb-0">
-                    <div class="skeleton-container rounded-md w-20 h-28 flex-shrink-0">
-                        <img src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="thumbnail-img skeleton-img active-thumbnail w-20 h-28 object-cover cursor-pointer flex-shrink-0 rounded-md opacity-0" loading="lazy" decoding="async" onload="handleImageLoad(this)"/>
+                <div id="thumbnail-gallery" class="flex flex-row gap-3 overflow-x-auto hide-scrollbar pb-2">
+                    <style>#thumbnail-gallery::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }</style>
+                    <div class="skeleton-container rounded-sm w-20 md:w-24 aspect-[3/4] flex-shrink-0 cursor-pointer border border-brand-text active-thumbnail overflow-hidden transition-all opacity-80 hover:opacity-100">
+                        <img src="/<?= htmlspecialchars($mainImageUrl) ?>" alt="<?= htmlspecialchars($singleProduct['name']) ?>" class="thumbnail-img skeleton-img w-full h-full object-cover opacity-0 transition-opacity duration-300" loading="lazy" decoding="async" onload="handleImageLoad(this)"/>
                     </div>
                     <?php foreach ($productImages as $image): ?>
-                    <div class="skeleton-container rounded-md w-20 h-28 flex-shrink-0">
-                        <img src="/<?= htmlspecialchars($image['image_path']) ?>" alt="<?= htmlspecialchars($image['alt_text'] ?? $singleProduct['name']) ?>" class="thumbnail-img skeleton-img w-20 h-28 object-cover cursor-pointer flex-shrink-0 rounded-md opacity-0" loading="lazy" decoding="async" onload="handleImageLoad(this)"/>
+                    <div class="skeleton-container rounded-sm w-20 md:w-24 aspect-[3/4] flex-shrink-0 cursor-pointer border border-transparent hover:border-gray-300 transition-all overflow-hidden opacity-60 hover:opacity-100">
+                        <img src="/<?= htmlspecialchars($image['image_path']) ?>" alt="<?= htmlspecialchars($image['alt_text'] ?? $singleProduct['name']) ?>" class="thumbnail-img skeleton-img w-full h-full object-cover opacity-0 transition-opacity duration-300" loading="lazy" decoding="async" onload="handleImageLoad(this)"/>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -417,25 +456,38 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                 </div>
                 <div>
                     <!-- Color Selection (Unchanged) -->
-                    <h3 class="text-sm font-semibold mb-3">COLOR <span class="<?= !empty($availableColors) ? 'text-brand-red font-semibold' : 'text-brand-gray font-normal' ?>"><?= !empty($availableColors) ? '(Required)' : '(Optional)' ?></span></h3>
+                    <h3 class="text-xs uppercase tracking-widest font-bold text-brand-text mb-3">COLOR</h3>
                     <?php if (!empty($availableColors)): ?>
-                        <div class="relative">
-                            <select id="color-select" name="color_id" class="form-select-sleek pr-8">
-                                <option value="" data-hex="" selected>-- Select a color --</option>
+                        <div class="custom-dropdown-container relative group mb-4">
+                            <!-- Hidden original select to maintain form and JS hooks -->
+                            <select id="color-select" name="color_id" class="hidden">
+                                <option value="" data-hex="" selected>Select Color</option>
                                 <?php foreach ($groupedColors as $colorGroup): ?>
-                                    <option
-                                        value="<?= htmlspecialchars($colorGroup['id']) ?>"
-                                        data-hex="<?= htmlspecialchars($colorGroup['hex']) ?>"
-                                    >
+                                    <option value="<?= htmlspecialchars($colorGroup['id']) ?>" data-hex="<?= htmlspecialchars($colorGroup['hex']) ?>">
                                         <?= htmlspecialchars($colorGroup['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-brand-gray">
-                                <i data-feather="chevron-down" class="h-4 w-4"></i>
+                            
+                            <!-- Custom UI -->
+                            <div class="custom-dropdown-trigger flex justify-between items-center w-full bg-transparent border border-gray-200 rounded-none md:rounded-sm py-3.5 pl-4 pr-4 text-sm font-medium text-brand-text hover:border-gray-300 transition-colors cursor-pointer" tabindex="0">
+                                <span class="selected-text">Select Color</span>
+                                <i data-feather="chevron-down" class="h-4 w-4 text-brand-gray transition-transform duration-200 dropdown-icon"></i>
+                            </div>
+                            
+                            <!-- Dropdown Menu -->
+                            <div class="custom-dropdown-menu absolute z-30 w-full bg-white border border-gray-200 mt-1 rounded-sm shadow-xl hidden opacity-0 translate-y-[-10px] transition-all duration-200">
+                                <ul class="py-1 max-h-60 overflow-y-auto hide-scrollbar">
+                                    <li class="custom-option px-4 py-3 text-sm text-brand-gray hover:bg-gray-50 cursor-pointer transition-colors" data-value="">Select Color</li>
+                                    <?php foreach ($groupedColors as $colorGroup): ?>
+                                        <li class="custom-option px-4 py-3 text-sm text-brand-text hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors" data-value="<?= htmlspecialchars($colorGroup['id']) ?>">
+                                            <?= htmlspecialchars($colorGroup['name']) ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
                             </div>
                         </div>
-                        <button id="open-custom-color-btn" class="text-sm text-brand-gray hover:text-brand-text underline mt-3">Or need a custom color?</button>
+                        <button id="open-custom-color-btn" class="text-sm text-brand-gray hover:text-brand-text underline transition-colors">Or need a custom color?</button>
                         <div id="custom-color-input-container" class="is-closed">
                             <label for="custom-color" class="text-sm font-medium text-brand-gray">Custom Color</label>
                             <input type="text" id="custom-color" class="form-input-sleek mt-1" placeholder="e.g., Emerald Green"/>
@@ -448,20 +500,19 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                     <?php endif; ?>
                 </div>
                 <div>
-                    <!-- Option/Size Selection (Modified to be visible by default) -->
                     <?php if (!$allVariantsNameless): // Only show variant section if variants have names ?>
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="text-sm font-semibold">VARIANT <span class="<?= (!empty($productOptions)) ? 'text-brand-red font-semibold' : 'text-brand-gray font-normal' ?>"><?= (!empty($productOptions)) ? '(Required)' : '(Optional)' ?></span></h3>
+                    <div class="flex justify-between items-center mb-3 mt-8">
+                        <h3 class="text-xs uppercase tracking-widest font-bold text-brand-text">VARIANT</h3>
                         <?php if(!empty($productOptions)): // Show if any standard options exist ?>
-                        <button id="open-size-chart-btn" class="text-sm font-medium text-brand-gray hover:text-brand-text underline">Size Guide</button>
+                        <button id="open-size-chart-btn" class="text-xs font-semibold tracking-wider text-brand-gray hover:text-brand-text underline uppercase transition-colors">Size Guide</button>
                         <?php endif; ?>
                     </div>
 
                     <?php if (!empty($productOptions)): ?>
-                        <!-- Select Wrapper (ALWAYS VISIBLE - removed 'hidden' class) -->
-                        <div id="product-option-select-wrapper" class="relative mt-4">
-                            <select id="product-option-select" class="form-select-sleek pr-8">
-                                <option value="" data-type="" data-id="" data-price-modifier="0" selected>-- Select a Variant --</option>
+                        <div class="custom-dropdown-container relative group mt-1 mb-4" id="product-option-select-wrapper">
+                            <!-- Hidden original select -->
+                            <select id="product-option-select" class="hidden">
+                                <option value="" data-type="" data-id="" data-price-modifier="0" selected>Select Variant</option>
                                 <?php foreach ($productOptions as $index => $option): ?>
                                     <option
                                         value="<?= htmlspecialchars($option['type'] . '-' . $option['id']) ?>"
@@ -474,15 +525,30 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-brand-gray">
-                                <i data-feather="chevron-down" class="h-4 w-4"></i>
+
+                            <!-- Custom UI -->
+                            <div class="custom-dropdown-trigger flex justify-between items-center w-full bg-transparent border border-gray-200 rounded-none md:rounded-sm py-3.5 pl-4 pr-4 text-sm font-medium text-brand-text hover:border-gray-300 transition-colors cursor-pointer" tabindex="0">
+                                <span class="selected-text">Select Variant</span>
+                                <i data-feather="chevron-down" class="h-4 w-4 text-brand-gray transition-transform duration-200 dropdown-icon"></i>
+                            </div>
+                            
+                            <!-- Dropdown Menu -->
+                            <div class="custom-dropdown-menu absolute z-30 w-full bg-white border border-gray-200 mt-1 rounded-sm shadow-xl hidden opacity-0 translate-y-[-10px] transition-all duration-200">
+                                <ul class="py-1 max-h-60 overflow-y-auto hide-scrollbar">
+                                    <li class="custom-option px-4 py-3 text-sm text-brand-gray hover:bg-gray-50 cursor-pointer transition-colors" data-value="">Select Variant</li>
+                                    <?php foreach ($productOptions as $option): ?>
+                                        <li class="custom-option px-4 py-3 text-sm text-brand-text hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors" data-value="<?= htmlspecialchars($option['type'] . '-' . $option['id']) ?>">
+                                            <?= htmlspecialchars($option['name']) ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
                             </div>
                         </div>
                     <?php endif; ?>
                     <?php endif; // end !$allVariantsNameless ?>
 
                     <!-- Custom size toggle button — always visible -->
-                    <button id="open-custom-size-btn" class="text-sm text-brand-gray hover:text-brand-text underline mt-4">Or provide custom measurements</button>
+                    <button id="open-custom-size-btn" class="text-sm text-brand-gray hover:text-brand-text underline mt-2">Or provide custom measurements</button>
 
                     <!-- Custom Measurement Inputs (Visibility toggled via JS/CSS class) -->
                     <div id="custom-measurement-container" class="is-closed">
@@ -575,35 +641,38 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
     <!-- =================================================================== -->
     <!-- REVIEWS SECTION                                                     -->
     <!-- =================================================================== -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-gray-200" id="reviews-section">
-        <h2 class="text-2xl font-serif font-semibold mb-8">Customer Reviews</h2>
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 border-t border-gray-200" id="reviews-section">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-serif font-semibold text-brand-text mb-2">Customer Reviews</h2>
+            <p class="text-brand-gray font-lato text-sm uppercase tracking-widest">See what others are saying</p>
+        </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
             <!-- LEFT: Summary & Form -->
-            <div class="lg:col-span-1 space-y-8">
+            <div class="lg:col-span-4 space-y-10">
                 
                 <!-- Rating Summary -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div class="text-center">
-                        <div id="avg-rating-value" class="text-5xl font-bold text-brand-text mb-2"><?= $averageRating ?></div>
-                        <div id="avg-rating-stars" class="flex justify-center gap-1 text-yellow-400 mb-2">
-                            <?php for($i=1; $i<=5; $i++): ?>
-                                <i data-feather="star" class="w-5 h-5 <?= $i <= round($averageRating) ? 'fill-current' : 'text-gray-300' ?>"></i>
-                            <?php endfor; ?>
-                        </div>
-                        <p id="reviews-count" class="text-sm text-brand-gray"><?= $totalReviews ?> review<?= $totalReviews !== 1 ? 's' : '' ?></p>
+                <div class="text-center lg:text-left">
+                    <div id="avg-rating-value" class="text-6xl font-serif text-brand-text mb-4"><?= $averageRating ?></div>
+                    <div id="avg-rating-stars" class="flex justify-center lg:justify-start gap-1 text-yellow-400 mb-3">
+                        <?php for($i=1; $i<=5; $i++): ?>
+                            <i data-feather="star" class="w-5 h-5 <?= $i <= round($averageRating) ? 'fill-current' : 'text-gray-300' ?>"></i>
+                        <?php endfor; ?>
                     </div>
+                    <p id="reviews-count" class="text-sm font-lato text-brand-gray">Based on <?= $totalReviews ?> review<?= $totalReviews !== 1 ? 's' : '' ?></p>
                 </div>
+
+                <hr class="border-gray-100 hidden lg:block">
 
                 <!-- Review Form (Logged In Only) -->
                 <?php if (isset($_SESSION['user_id'])): ?>
-                    <form id="review-form" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <h3 class="text-lg font-semibold mb-4">Write a Review</h3>
+                    <form id="review-form" class="space-y-6">
+                        <h3 class="text-xl font-serif text-brand-text mb-2">Write a Review</h3>
                         <input type="hidden" name="product_id" value="<?= $id ?>">
                         
                         <!-- Star Input -->
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-brand-gray mb-1">Rating</label>
+                        <div>
+                            <label class="block text-xs uppercase tracking-widest font-bold text-brand-text mb-3">RATING</label>
                             <div class="flex gap-2" id="star-rating-input">
                                 <?php for($i=1; $i<=5; $i++): ?>
                                     <button type="button" class="star-btn text-gray-300 hover:text-yellow-400 transition-colors" data-value="<?= $i ?>">
@@ -614,50 +683,56 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
                             <input type="hidden" name="rating" id="rating-value" required>
                         </div>
 
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-brand-gray mb-1">Your Review</label>
-                            <textarea name="review_text" rows="4" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-brand-text resize-none" placeholder="Share your thoughts..." required></textarea>
+                        <div>
+                            <label class="block text-xs uppercase tracking-widest font-bold text-brand-text mb-3">YOUR EXPERIENCE</label>
+                            <textarea name="review_text" rows="5" class="w-full bg-transparent border border-gray-200 rounded-sm p-4 text-sm font-lato focus:outline-none focus:border-brand-text resize-none transition-colors" placeholder="Share your thoughts about this piece..." required></textarea>
                         </div>
 
-                        <button type="submit" class="w-full bg-brand-text text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" id="submit-review-btn">Submit Review</button>
+                        <button type="submit" class="w-full bg-brand-text text-white py-4 font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider text-sm" id="submit-review-btn">Submit Review</button>
                     </form>
                 <?php else: ?>
-                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center">
-                        <p class="text-brand-gray mb-4">Please log in to write a review.</p>
-                        <a href="/register?form=login&redirect=<?= urlencode($_SERVER['REQUEST_URI']) ?>" class="inline-block bg-white border border-gray-300 text-brand-text px-6 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors">Log In</a>
+                    <div class="bg-gray-50/50 p-8 rounded-sm border border-gray-100 text-center">
+                        <i data-feather="lock" class="w-6 h-6 mx-auto mb-4 text-brand-gray"></i>
+                        <h3 class="font-serif text-lg mb-2">Join the Conversation</h3>
+                        <p class="text-sm font-lato text-brand-gray mb-6">Create an account or log in to leave a review.</p>
+                        <a href="/register?form=login&redirect=<?= urlencode($_SERVER['REQUEST_URI']) ?>" class="inline-block bg-brand-text text-white px-8 py-3 rounded-none font-medium hover:bg-gray-800 transition-colors text-sm tracking-wider uppercase">Log In</a>
                     </div>
                 <?php endif; ?>
             </div>
 
             <!-- RIGHT: Reviews List -->
-            <div class="lg:col-span-2">
-                <div id="reviews-list" class="space-y-6">
+            <div class="lg:col-span-8">
+                <div id="reviews-list" class="space-y-8 lg:space-y-12">
                     <?php if ($totalReviews > 0): ?>
                         <?php foreach ($productReviews as $review): ?>
-                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex gap-4">
-                                <div class="flex-shrink-0">
-                                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-brand-gray font-bold text-lg">
+                            <div class="flex gap-6 pb-8 border-b border-gray-100 last:border-0 last:pb-0">
+                                <div class="flex-shrink-0 hidden sm:block">
+                                    <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-brand-text font-serif text-lg border border-gray-200">
                                         <?= strtoupper(substr($review['reviewer_name'], 0, 1)) ?>
                                     </div>
                                 </div>
                                 <div class="flex-grow">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <h4 class="font-semibold text-brand-text"><?= htmlspecialchars($review['reviewer_name']) ?></h4>
-                                        <span class="text-xs text-brand-gray"><?= date('F j, Y', strtotime($review['created_at'])) ?></span>
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
+                                        <div class="flex items-center gap-3">
+                                            <h4 class="font-serif font-medium text-lg text-brand-text"><?= htmlspecialchars($review['reviewer_name']) ?></h4>
+                                            <span class="w-1 h-1 rounded-full bg-gray-300 hidden sm:block"></span>
+                                            <span class="text-xs font-lato text-brand-gray uppercase tracking-wider"><?= date('M j, Y', strtotime($review['created_at'])) ?></span>
+                                        </div>
+                                        <div class="flex gap-0.5 text-yellow-400">
+                                            <?php for($i=1; $i<=5; $i++): ?>
+                                                <i data-feather="star" class="w-4 h-4 <?= $i <= $review['rating'] ? 'fill-current' : 'text-gray-300' ?>"></i>
+                                            <?php endfor; ?>
+                                        </div>
                                     </div>
-                                    <div class="flex gap-0.5 text-yellow-400 mb-2">
-                                        <?php for($i=1; $i<=5; $i++): ?>
-                                            <i data-feather="star" class="w-4 h-4 <?= $i <= $review['rating'] ? 'fill-current' : 'text-gray-300' ?>"></i>
-                                        <?php endfor; ?>
-                                    </div>
-                                    <p class="text-sm text-gray-600 leading-relaxed"><?= nl2br(htmlspecialchars($review['review_text'])) ?></p>
+                                    <p class="text-sm font-lato text-gray-600 leading-relaxed max-w-3xl"><?= nl2br(htmlspecialchars($review['review_text'])) ?></p>
                                 </div>
                             </div>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <div id="no-reviews-msg" class="text-center py-12 text-brand-gray">
-                            <i data-feather="message-square" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>
-                            <p>No reviews yet. Be the first to share your thoughts!</p>
+                        <div id="no-reviews-msg" class="text-center py-16 bg-gray-50/30 border border-gray-100 rounded-sm">
+                            <i data-feather="message-square" class="w-10 h-10 mx-auto mb-4 text-gray-300 font-light"></i>
+                            <p class="font-serif text-lg text-brand-text mb-1">No reviews yet</p>
+                            <p class="font-lato text-sm text-brand-gray">Be the first to share your thoughts on this piece.</p>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -679,6 +754,8 @@ if ($singleProduct['use_color_combinations'] == 1 && $colorCount >= 2) {
         <div><label for="round_knee" class="text-sm font-medium text-brand-gray">Round knee</label><input type="text" id="round_knee" class="form-input-sleek mt-1" placeholder="e.g., 16 in"/></div>
         <div><label for="shoulder_to_knee" class="text-sm font-medium text-brand-gray">Shoulder to knee</label><input type="text" id="shoulder_to_knee" class="form-input-sleek mt-1" placeholder="e.g., 38 in"/></div>
         <div><label for="shoulder_to_underbust" class="text-sm font-medium text-brand-gray">Shoulder to underbust</label><input type="text" id="shoulder_to_underbust" class="form-input-sleek mt-1" placeholder="e.g., 14 in"/></div>
+        <div><label for="mini_skirt_length" class="text-sm font-medium text-brand-gray">Mini skirt length</label><input type="text" id="mini_skirt_length" class="form-input-sleek mt-1" placeholder="e.g., 15 in"/></div>
+        <div><label for="waist_to_ankle_length" class="text-sm font-medium text-brand-gray">Waist to ankle length</label><input type="text" id="waist_to_ankle_length" class="form-input-sleek mt-1" placeholder="e.g., 40 in"/></div>
     </div><button id="save-measurements-btn" class="w-full bg-brand-text text-white py-3 mt-4 font-semibold hover:bg-gray-800 transition-colors">Confirm Measurements</button></div></div></div>
     
     <div id="size-chart-modal" class="modal-container hidden">
@@ -1024,29 +1101,37 @@ document.addEventListener("DOMContentLoaded", () => {
     const INITIAL_CURRENCY = '<?= $current_currency ?>';
 
     const updateAllPrices = (targetCurrency) => {
+        const productOptionSelect = document.getElementById('product-option-select');
+        const hasSelection = productOptionSelect && productOptionSelect.value !== "";
+
         document.querySelectorAll('.price-display').forEach(el => {
             const ngnPrice = parseFloat(el.dataset.priceNgn);
-            if (!isNaN(ngnPrice)) {
-                // For the product price element with a range, show range in the correct currency
-                if (el.id === 'product-price' && el.dataset.rangeMin && el.dataset.rangeMax) {
-                    const min = parseFloat(el.dataset.rangeMin);
-                    const max = parseFloat(el.dataset.rangeMax);
-                    // Only show range if no specific variant is selected
-                    const optionSelect = document.getElementById('product-option-select');
-                    const hasSelection = optionSelect && optionSelect.value !== "";
-                    if (!hasSelection && min !== max) {
+            if (isNaN(ngnPrice)) return;
+
+            // Handle main product price with potential range
+            if (el.id === 'product-price') {
+                const minRaw = el.dataset.rangeMin;
+                const maxRaw = el.dataset.rangeMax;
+                
+                // Show range if no specific variant is selected and range exists
+                if (!hasSelection && minRaw && maxRaw) {
+                    const min = parseFloat(minRaw);
+                    const max = parseFloat(maxRaw);
+                    
+                    if (!isNaN(min) && !isNaN(max) && min !== max) {
                         const fMin = (targetCurrency === 'USD') ? formatCurrency(min / USD_RATE, 'USD') : formatCurrency(min, 'NGN');
                         const fMax = (targetCurrency === 'USD') ? formatCurrency(max / USD_RATE, 'USD') : formatCurrency(max, 'NGN');
                         el.innerHTML = `<span class="price-from-label">From </span>${fMin} <span class="text-lg text-brand-gray">–</span> ${fMax}`;
                         return;
                     }
                 }
-                let newPrice = (targetCurrency === 'USD') ? ngnPrice / USD_RATE : ngnPrice;
-                el.textContent = formatCurrency(newPrice, targetCurrency);
             }
+
+            // Fallback: simple price display (single value)
+            let newPrice = (targetCurrency === 'USD') ? ngnPrice / USD_RATE : ngnPrice;
+            el.textContent = formatCurrency(newPrice, targetCurrency);
         });
     };
-
     // --- BIND EVENT LISTENERS ---
     if(selectors.addToCartBtn) selectors.addToCartBtn.addEventListener("click", handleAddToCart);
 
@@ -1100,17 +1185,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Thumbnail image selection
-    selectors.thumbnails.forEach(thumb => {
-        thumb.addEventListener("click", function () {
-            if(selectors.mainImage) {
-                selectors.mainImage.src = this.src;
-                selectors.mainImage.alt = this.alt;
-            }
-            selectors.thumbnails.forEach(t => t.classList.remove("active-thumbnail"));
-            this.classList.add("active-thumbnail");
-        });
-    });
+    // Old thumbnail logic removed to be replaced by scroll sync logic
 
     // --- Color Dropdown listener (Updates color name display on product page) ---
     if (selectors.colorSelect) {
@@ -1130,41 +1205,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Animate price change helper
-    const animatePrice = (priceEl, newPriceNgn, displayHtml) => {
+    const animatePrice = (priceEl, newPriceNgn) => {
         priceEl.classList.remove('price-pop');
         // Force reflow to restart the animation
         void priceEl.offsetWidth;
         priceEl.dataset.priceNgn = newPriceNgn;
-        if (displayHtml !== undefined) {
-            priceEl.innerHTML = displayHtml;
-        }
         priceEl.classList.add('price-pop');
         updateAllPrices(document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN');
     };
-
-    // Build initial range HTML for reverting to when deselecting
-    const rangeMin = selectors.productPriceEl?.dataset.rangeMin;
-    const rangeMax = selectors.productPriceEl?.dataset.rangeMax;
-    const initialPriceHtml = selectors.productPriceEl?.innerHTML;
 
     // Handle product option/size dropdown change
     if (selectors.productOptionSelect) {
         selectors.productOptionSelect.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
+            if (!selectedOption) return;
             const priceModifier = parseFloat(selectedOption.dataset.priceModifier || 0);
             const basePrice = parseFloat(selectors.productPriceEl.dataset.basePrice);
-            const newDisplayPrice = basePrice + priceModifier;
-            const activeCurrency = document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN';
 
             if (selectedOption.value === "") {
-                // Revert to range display
-                animatePrice(selectors.productPriceEl, rangeMin || basePrice, initialPriceHtml);
+                const rMin = selectors.productPriceEl.dataset.rangeMin;
+                animatePrice(selectors.productPriceEl, rMin || basePrice);
             } else {
-                // Show exact price with animation
-                const formattedPrice = activeCurrency === 'USD'
-                    ? formatCurrency(newDisplayPrice / (typeof USD_EXCHANGE_RATE !== 'undefined' ? USD_EXCHANGE_RATE : <?= defined('USD_EXCHANGE_RATE') ? USD_EXCHANGE_RATE : 1480 ?>), 'USD')
-                    : formatCurrency(newDisplayPrice, 'NGN');
-                animatePrice(selectors.productPriceEl, newDisplayPrice, formattedPrice);
+                animatePrice(selectors.productPriceEl, basePrice + priceModifier);
             }
 
             // Stock Display Logic & Button State
@@ -1222,6 +1284,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (selectors.productOptionSelect) {
                 selectors.productOptionSelect.value = "";
+                // Dispatch a change event so the price reverts correctly 
+                // and any other standard option logic resets
+                selectors.productOptionSelect.dispatchEvent(new Event('change'));
             }
         });
     }
@@ -1234,10 +1299,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (modal && modal.id === "custom-size-modal") {
                     if (selectors.productOptionSelect) {
                         selectors.productOptionSelect.value = "";
+                        selectors.productOptionSelect.dispatchEvent(new Event('change'));
+                    } else if (selectors.productPriceEl) {
+                        const basePrice = parseFloat(selectors.productPriceEl.dataset.basePrice);
+                        const rMin = selectors.productPriceEl.dataset.rangeMin;
+                        animatePrice(selectors.productPriceEl, rMin || basePrice);
                     }
-                    const basePrice = parseFloat(selectors.productPriceEl.dataset.basePrice);
-                    selectors.productPriceEl.dataset.priceNgn = basePrice;
-                    updateAllPrices(document.querySelector('.currency-switcher a.active')?.dataset.currency || 'NGN');
                 }
                 toggleModal(modal, true);
             });
@@ -1262,8 +1329,18 @@ document.addEventListener("DOMContentLoaded", () => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             const targetCurrency = this.dataset.currency;
-            document.querySelectorAll('.currency-switcher a.currency-link').forEach(l => l.classList.remove('active'));
-            this.classList.add('active');
+            
+            // Toggle active classes across all switcher instances
+            document.querySelectorAll(`.currency-switcher a.currency-link`).forEach(l => {
+                if (l.dataset.currency === targetCurrency) {
+                    l.classList.add('active', 'bg-white', 'shadow-sm', 'text-brand-text', 'border-brand-text');
+                    l.classList.remove('text-brand-gray', 'hover:text-brand-text', 'border-gray-200');
+                } else {
+                    l.classList.remove('active', 'bg-white', 'shadow-sm', 'text-brand-text', 'border-brand-text');
+                    l.classList.add('text-brand-gray', 'hover:text-brand-text', 'border-gray-200');
+                }
+            });
+
             updateAllPrices(targetCurrency);
             const expiryDate = new Date();
             expiryDate.setDate(expiryDate.getDate() + 30);
@@ -1321,6 +1398,30 @@ document.addEventListener("DOMContentLoaded", () => {
                     targetPanel.classList.remove('hidden');
                 }
             });
+        });
+    }
+    // --- Size Chart Modal Open/Close Logic ---
+    const openSizeChartBtn = document.getElementById('open-size-chart-btn');
+    const closeSizeChartBtn = document.getElementById('close-size-chart-btn');
+    const sizeChartModal = document.getElementById('size-chart-modal');
+    const sizeChartOverlay = document.getElementById('size-chart-overlay');
+
+    if (openSizeChartBtn && sizeChartModal) {
+        openSizeChartBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            sizeChartModal.classList.remove('hidden');
+        });
+    }
+
+    if (closeSizeChartBtn && sizeChartModal) {
+        closeSizeChartBtn.addEventListener('click', () => {
+             sizeChartModal.classList.add('hidden');
+        });
+    }
+
+    if (sizeChartOverlay && sizeChartModal) {
+        sizeChartOverlay.addEventListener('click', () => {
+             sizeChartModal.classList.add('hidden');
         });
     }
 
@@ -1471,6 +1572,189 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // --- Draggable Carousel with Navigation ---
+    const mainCarousel = document.getElementById('main-image-slider');
+    const prevBtn = document.getElementById('slider-prev');
+    const nextBtn = document.getElementById('slider-next');
+    const thumbs = document.querySelectorAll('.thumbnail-img');
+    const thumbContainers = document.querySelectorAll('#thumbnail-gallery .skeleton-container');
+
+    if (mainCarousel) {
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        // Mouse drag logic
+        mainCarousel.addEventListener('mousedown', (e) => {
+            isDown = true;
+            mainCarousel.classList.add('cursor-grabbing');
+            mainCarousel.classList.remove('snap-x'); // remove snapping while dragging
+            startX = e.pageX - mainCarousel.offsetLeft;
+            scrollLeft = mainCarousel.scrollLeft;
+        });
+
+        const stopDrag = () => {
+            if(!isDown) return;
+            isDown = false;
+            mainCarousel.classList.remove('cursor-grabbing');
+            mainCarousel.classList.add('snap-x');
+        };
+
+        mainCarousel.addEventListener('mouseleave', stopDrag);
+        mainCarousel.addEventListener('mouseup', stopDrag);
+
+        mainCarousel.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - mainCarousel.offsetLeft;
+            const walk = (x - startX) * 2;
+            mainCarousel.scrollLeft = scrollLeft - walk;
+        });
+
+        // Navigation Arrows
+        const scrollAmount = mainCarousel.clientWidth;
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                mainCarousel.scrollBy({ left: -mainCarousel.clientWidth, behavior: 'smooth' });
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                mainCarousel.scrollBy({ left: mainCarousel.clientWidth, behavior: 'smooth' });
+            });
+        }
+
+        // Thumbnail Click Logic
+        thumbs.forEach((thumb, index) => {
+            thumb.parentElement.addEventListener('click', () => {
+                const scrollPos = index * mainCarousel.clientWidth;
+                mainCarousel.scrollTo({ left: scrollPos, behavior: 'smooth' });
+            });
+        });
+
+        // Sync Thumbnail Active State on scroll
+        mainCarousel.addEventListener('scroll', () => {
+            const index = Math.round(mainCarousel.scrollLeft / mainCarousel.clientWidth);
+            thumbContainers.forEach((container, i) => {
+                if (i === index) {
+                    container.classList.add('border-brand-text', 'opacity-80', 'active-thumbnail');
+                    container.classList.remove('border-transparent', 'opacity-60');
+                } else {
+                    container.classList.remove('border-brand-text', 'opacity-80', 'active-thumbnail');
+                    container.classList.add('border-transparent', 'opacity-60');
+                }
+            });
+        });
+        
+        // Handle window resize dynamically adjusting scroll amounts
+        window.addEventListener('resize', () => {
+             const index = Math.round(mainCarousel.scrollLeft / mainCarousel.clientWidth);
+             mainCarousel.scrollTo({ left: index * mainCarousel.clientWidth, behavior: 'auto' });
+        });
+    }
+
+    // --- Custom Dropdowns Logic ---
+    const customDropdowns = document.querySelectorAll('.custom-dropdown-container');
+
+    // Close all open dropdowns
+    function closeAllDropdowns(except = null) {
+        customDropdowns.forEach(dropdown => {
+            if (dropdown !== except) {
+                const menu = dropdown.querySelector('.custom-dropdown-menu');
+                const icon = dropdown.querySelector('.dropdown-icon');
+                if (menu && !menu.classList.contains('hidden')) {
+                    menu.classList.add('opacity-0', 'translate-y-[-10px]');
+                    setTimeout(() => menu.classList.add('hidden'), 200);
+                    icon.style.transform = 'rotate(0deg)';
+                }
+            }
+        });
+    }
+
+    // Handle clicks outside of dropdowns
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.custom-dropdown-container')) {
+            closeAllDropdowns();
+        }
+    });
+
+    customDropdowns.forEach(dropdown => {
+        const trigger = dropdown.querySelector('.custom-dropdown-trigger');
+        const menu = dropdown.querySelector('.custom-dropdown-menu');
+        const icon = dropdown.querySelector('.dropdown-icon');
+        const selectedText = dropdown.querySelector('.selected-text');
+        const hiddenSelect = dropdown.querySelector('select.hidden');
+        const options = dropdown.querySelectorAll('.custom-option');
+
+        if (!trigger || !menu || !hiddenSelect) return;
+
+        // Toggle dropdown open/close
+        trigger.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isOpen = !menu.classList.contains('hidden');
+            
+            closeAllDropdowns(dropdown); // close others
+
+            if (isOpen) {
+                menu.classList.add('opacity-0', 'translate-y-[-10px]');
+                setTimeout(() => menu.classList.add('hidden'), 200);
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                menu.classList.remove('hidden');
+                // trigger reflow
+                void menu.offsetWidth;
+                menu.classList.remove('opacity-0', 'translate-y-[-10px]');
+                icon.style.transform = 'rotate(180deg)';
+            }
+        });
+
+        // Handle option selection
+        options.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                
+                const val = option.dataset.value;
+                const textHTML = option.innerHTML; // get the HTML (including color dots if they exist)
+                
+                // Update trigger display
+                selectedText.innerHTML = textHTML;
+                
+                // Update hidden select and MUST trigger 'change' event manually so the rest of the JS catches it
+                hiddenSelect.value = val;
+                hiddenSelect.dispatchEvent(new Event('change'));
+
+                // Close menu
+                menu.classList.add('opacity-0', 'translate-y-[-10px]');
+                setTimeout(() => menu.classList.add('hidden'), 200);
+                icon.style.transform = 'rotate(0deg)';
+            });
+        });
+        
+        // Listen to hidden select physical changes (e.g., if JS resets it)
+        hiddenSelect.addEventListener('change', () => {
+            const currentVal = hiddenSelect.value;
+            // find matching custom option
+            const matchingOption = Array.from(options).find(opt => opt.dataset.value === currentVal);
+            if (matchingOption) {
+                 selectedText.innerHTML = matchingOption.innerHTML;
+            } else {
+                 // fallback if no match (e.g., reset to empty string)
+                 const emptyOpt = Array.from(options).find(opt => opt.dataset.value === "");
+                 if(emptyOpt) selectedText.innerHTML = emptyOpt.innerHTML;
+            }
+        });
+
+        // Initialize display if hidden select has a pre-selected value
+        if (hiddenSelect.value !== '') {
+            const initialOption = Array.from(options).find(opt => opt.dataset.value === hiddenSelect.value);
+            if(initialOption) {
+                selectedText.innerHTML = initialOption.innerHTML;
+            }
+        }
+    });
 
 });
 

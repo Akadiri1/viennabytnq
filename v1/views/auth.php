@@ -114,14 +114,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         theme: {
           extend: {
             colors: { "brand-bg": "#F9F6F2", "brand-text": "#1A1A1A", "brand-gray": "#6B7280", "brand-red": "#EF4444", },
-            fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui"], serif: ["Cormorant Garamond", "serif"], },
+            fontFamily: { sans: ["Lato", "ui-sans-serif", "system-ui"], serif: ["Playfair Display", "serif"], },
           },
         },
       };
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/feather-icons"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
@@ -130,76 +130,155 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
       .form-input-auth:focus { outline: none; border-color: #1a1a1a; box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.2); }
       .toastify { padding: 12px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; box-shadow: 0 3px 6px -1px rgba(0,0,0,.12), 0 10px 36px -4px rgba(51,45,45,.25); }
     </style>
+    <style>
+      .form-input-auth { display: block; width: 100%; padding: 0.75rem; font-size: 0.875rem; border: 1px solid #d1d5db; border-radius: 0.375rem; transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+      .form-input-auth:focus { outline: none; border-color: #1a1a1a; box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.2); }
+      .toastify { padding: 12px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+      body { overflow: hidden; height: 100vh; }
+      .split-screen { height: 100vh; display: flex; overflow: hidden; }
+      .login-panel { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 2rem; background-color: #F9F6F2; position: relative; z-index: 20; overflow-y: auto; }
+      .login-panel::-webkit-scrollbar { width: 4px; }
+      .login-panel::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
+      .image-panel { flex: 1; background-color: #1A1A1A; display: none; position: relative; overflow: hidden; }
+      @media (min-width: 1024px) { .image-panel { display: block; } }
+      .input-underline { border-bottom: 1px solid #d1d5db; transition: border-color 0.3s ease; }
+      .input-underline:focus-within { border-color: #1A1A1A; }
+      .btn-primary { background-color: #1A1A1A; color: white; transition: all 0.3s ease; }
+      .btn-primary:hover { background-color: #333; transform: translateY(-1px); }
+      .slide-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 2s ease-in-out, transform 10s ease-out; transform: scale(1.1); z-index: 0; }
+      .slide-image.active { opacity: 1; transform: scale(1); z-index: 1; }
+      .slide-text { position: absolute; bottom: 3rem; left: 3rem; z-index: 20; color: white; max-width: 32rem; opacity: 0; transform: translateY(20px); transition: opacity 1s ease-out, transform 1s ease-out; pointer-events: none; }
+      .slide-text.active { opacity: 1; transform: translateY(0); }
+      .fade-in { animation: fadeIn 0.8s ease-out forwards; opacity: 0; transform: translateY(10px); }
+      @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+    </style>
 </head>
-<body class="bg-brand-bg font-sans text-brand-text">
 
-    <header class="bg-brand-bg border-b border-gray-200/60">
-        <div class="container mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center justify-center h-16"><a href="/home"><div class="text-2xl font-serif font-bold tracking-widest"><?= htmlspecialchars($site_name) ?></div></a></div></div>
-    </header>
-
-    <main class="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div class="w-full max-w-md bg-white p-8 md:p-10 rounded-xl shadow-sm overflow-hidden">
-
-            <!-- Sign In Form Container -->
-            <div id="login-form-container">
-                <div>
-                    <h1 class="text-center text-4xl font-serif font-bold text-brand-text">Welcome Back</h1>
-                    <p class="mt-2 text-center text-sm text-brand-gray">Don't have an account? <a href="#" id="show-register-form" class="font-medium text-brand-text hover:underline">Sign up here</a></p>
+<body class="font-sans text-brand-text h-screen overflow-hidden">
+    <div class="split-screen">
+        <!-- LEFT: Form Panel -->
+        <div class="login-panel">
+            <div class="w-full max-w-md mx-auto fade-in py-4" style="animation-delay: 0.1s;">
+                <!-- Logo -->
+                <div class="mb-6 flex justify-center">
+                    <a href="/home"><img src="/images/viennabg.png" alt="<?= htmlspecialchars($site_name) ?>" class="h-12 w-auto object-contain"></a>
                 </div>
-                <form class="mt-8 space-y-6" action="auth" method="POST">
-                    <input type="hidden" name="action" value="login">
-                    <input type="hidden" name="redirect" value="<?= htmlspecialchars($_REQUEST['redirect'] ?? '') ?>">
-                    <div class="space-y-4">
-                        <div>
-                            <label for="login-email" class="text-sm font-medium text-brand-gray">Email address</label>
-                            <input id="login-email" name="email" type="email" autocomplete="email" required class="form-input-auth mt-1" placeholder="you@example.com">
-                        </div>
-                        <div>
-                            <label for="login-password" class="text-sm font-medium text-brand-gray">Password</label>
-                            <input id="login-password" name="password" type="password" autocomplete="current-password" required class="form-input-auth mt-1" placeholder="••••••••">
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-end text-sm"><div class="font-medium"><a href="/forgot-password.php" class="text-brand-text hover:underline">Forgot password?</a></div></div>
-                    <div><button type="submit" class="w-full flex justify-center py-3 px-4 text-sm font-semibold rounded-md text-white bg-brand-text hover:bg-gray-800 transition-colors">Sign In</button></div>
-                </form>
-            </div>
 
-            <!-- Register Form Container (Initially Hidden) -->
-            <div id="register-form-container" class="hidden">
-                 <div>
-                    <h1 class="text-center text-4xl font-serif font-bold text-brand-text">Create an Account</h1>
-                    <p class="mt-2 text-center text-sm text-brand-gray">Already have an account? <a href="#" id="show-login-form" class="font-medium text-brand-text hover:underline">Sign in here</a></p>
+                <!-- Sign In Form Container -->
+                <div id="login-form-container">
+                    <div class="mb-6 text-center">
+                        <h1 class="text-3xl font-serif font-semibold mb-1">Welcome Back</h1>
+                        <p class="text-brand-gray text-xs">Don't have an account? <a href="#" id="show-register-form" class="font-bold text-brand-text hover:underline">Sign up here</a></p>
+                    </div>
+                    <form class="space-y-4" action="auth" method="POST">
+                        <input type="hidden" name="action" value="login">
+                        <input type="hidden" name="redirect" value="<?= htmlspecialchars($_REQUEST['redirect'] ?? '') ?>">
+                        
+                        <div class="input-underline py-1">
+                            <label for="login-email" class="block text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Email address</label>
+                            <input id="login-email" name="email" type="email" autocomplete="email" required class="w-full bg-transparent border-none p-1.5 text-base focus:ring-0 placeholder-gray-300" placeholder="you@example.com">
+                        </div>
+                        
+                        <div class="input-underline py-1">
+                            <label for="login-password" class="block text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Password</label>
+                            <input id="login-password" name="password" type="password" autocomplete="current-password" required class="w-full bg-transparent border-none p-1.5 text-base focus:ring-0 placeholder-gray-300" placeholder="">
+                        </div>
+
+                        <div class="flex items-center justify-between pt-1">
+                            <label class="flex items-center text-[10px] text-brand-gray cursor-pointer">
+                                <input type="checkbox" class="form-checkbox h-3 w-3 text-brand-text border-gray-300 rounded focus:ring-brand-text">
+                                <span class="ml-1.5">Remember me</span>
+                            </label>
+                            <a href="/forgot-password.php" class="text-[10px] font-bold text-brand-text hover:underline">Forgot password?</a>
+                        </div>
+
+                        <button type="submit" class="btn-primary w-full py-3 text-xs font-bold uppercase tracking-widest mt-6 shadow-lg">
+                            Sign In
+                        </button>
+                    </form>
                 </div>
-                <form class="mt-8 space-y-6" action="auth" method="POST">
-                    <input type="hidden" name="action" value="register">
-                    <input type="hidden" name="redirect" value="<?= htmlspecialchars($_REQUEST['redirect'] ?? '') ?>">
-                    <div class="space-y-4">
-                        <div>
-                            <label for="full_name" class="text-sm font-medium text-brand-gray">Full Name</label>
-                            <input id="full_name" name="full_name" type="text" autocomplete="name" required class="form-input-auth mt-1" placeholder="Jane Doe">
-                        </div>
-                        <div>
-                            <label for="register-email" class="text-sm font-medium text-brand-gray">Email address</label>
-                            <input id="register-email" name="email" type="email" autocomplete="email" required class="form-input-auth mt-1" placeholder="you@example.com">
-                        </div>
-                        <div>
-                            <label for="register-password" class="text-sm font-medium text-brand-gray">Password</label>
-                            <input id="register-password" name="password" type="password" autocomplete="new-password" required class="form-input-auth mt-1" placeholder="Minimum 8 characters">
-                        </div>
-                        <div>
-                            <label for="password_confirm" class="text-sm font-medium text-brand-gray">Confirm Password</label>
-                            <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required class="form-input-auth mt-1" placeholder="••••••••">
-                        </div>
-                    </div>
-                    <div class="text-xs text-brand-gray text-center">By creating an account, you agree to our <a href="/terms-of-service" class="underline hover:text-brand-text">Terms of Service</a>.</div>
-                    <div><button type="submit" class="w-full flex justify-center py-3 px-4 text-sm font-semibold rounded-md text-white bg-brand-text hover:bg-gray-800 transition-colors">Create Account</button></div>
-                </form>
-            </div>
 
+                <!-- Register Form Container (Initially Hidden) -->
+                <div id="register-form-container" class="hidden">
+                     <div class="mb-6 text-center">
+                        <h1 class="text-3xl font-serif font-semibold mb-1">Create an Account</h1>
+                        <p class="text-brand-gray text-xs">Already have an account? <a href="#" id="show-login-form" class="font-bold text-brand-text hover:underline">Sign in here</a></p>
+                    </div>
+
+                    <form class="space-y-4" action="auth" method="POST">
+                        <input type="hidden" name="action" value="register">
+                        <input type="hidden" name="redirect" value="<?= htmlspecialchars($_REQUEST['redirect'] ?? '') ?>">
+                        
+                        <div class="input-underline py-1">
+                            <label for="full_name" class="block text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Full Name</label>
+                            <input id="full_name" name="full_name" type="text" autocomplete="name" required class="w-full bg-transparent border-none p-1.5 text-base focus:ring-0 placeholder-gray-300" placeholder="Jane Doe">
+                        </div>
+                        
+                        <div class="input-underline py-1">
+                            <label for="register-email" class="block text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Email address</label>
+                            <input id="register-email" name="email" type="email" autocomplete="email" required class="w-full bg-transparent border-none p-1.5 text-base focus:ring-0 placeholder-gray-300" placeholder="you@example.com">
+                        </div>
+                        
+                        <div class="input-underline py-1">
+                            <label for="register-password" class="block text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Password</label>
+                            <input id="register-password" name="password" type="password" autocomplete="new-password" required class="w-full bg-transparent border-none p-1.5 text-base focus:ring-0 placeholder-gray-300" placeholder="Minimum 8 characters">
+                        </div>
+                        
+                        <div class="input-underline py-1">
+                            <label for="password_confirm" class="block text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-0.5">Confirm Password</label>
+                            <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required class="w-full bg-transparent border-none p-1.5 text-base focus:ring-0 placeholder-gray-300" placeholder="">
+                        </div>
+
+                        <div class="text-[10px] text-brand-gray text-center pt-2">
+                            By creating an account, you agree to our <br><a href="/terms-of-service" class="font-bold text-brand-text underline">Terms of Service</a>.
+                        </div>
+
+                        <button type="submit" class="btn-primary w-full py-3 text-xs font-bold uppercase tracking-widest mt-6 shadow-lg">
+                            Create Account
+                        </button>
+                    </form>
+                </div>
+                <!-- Footer within panel -->
+                <div class="mt-8 text-center text-[10px] text-brand-gray">
+                    <p>&copy; <?= date('Y') ?> <?= htmlspecialchars($site_name) ?>. All Rights Reserved.</p>
+                </div>
+            </div>
         </div>
-    </main>
-    
-    <footer class="bg-white border-t border-gray-200"><div class="p-6 text-center"><p class="text-xs text-brand-gray">© <?= date('Y') ?> <?= htmlspecialchars($site_name) ?>. All Rights Reserved.</p></div></footer>
+
+        <!-- RIGHT: Image Slideshow -->
+        <div class="image-panel" id="slideshow-container">
+            <div class="absolute inset-0 bg-black/20 z-10"></div>
+            
+            <img src="/images/setup-01.jpg" class="slide-image active" alt="Slide 1">
+            <img src="/images/setup-02.jpg" class="slide-image" alt="Slide 2">
+            <img src="/images/setup-03.jpg" class="slide-image" alt="Slide 3">
+            <img src="/images/setup-04.jpg" class="slide-image" alt="Slide 4">
+            
+            <div class="slide-text active">
+                <p class="font-serif text-3xl italic leading-tight mb-4">"Join the exclusive world of Vienna by TNQ."</p>
+                <p class="text-white/80 text-sm tracking-widest uppercase"> Discover Elegance</p>
+            </div>
+            <div class="slide-text">
+                <p class="font-serif text-3xl italic leading-tight mb-4">"Curated collections mapped perfectly to your refined taste."</p>
+                <p class="text-white/80 text-sm tracking-widest uppercase"> Tailored For You</p>
+            </div>
+            <div class="slide-text">
+                <p class="font-serif text-3xl italic leading-tight mb-4">"Experience seamless shopping with priority access."</p>
+                <p class="text-white/80 text-sm tracking-widest uppercase"> VIP Treatment</p>
+            </div>
+            <div class="slide-text">
+                <p class="font-serif text-3xl italic leading-tight mb-4">"Where timeless style meets contemporary luxury."</p>
+                <p class="text-white/80 text-sm tracking-widest uppercase"> Welcome Home</p>
+            </div>
+
+            <div class="absolute bottom-12 right-12 z-20 flex space-x-2">
+                <div class="w-2 h-2 rounded-full bg-white transition-opacity duration-300 opacity-100 indicator"></div>
+                <div class="w-2 h-2 rounded-full bg-white transition-opacity duration-300 opacity-50 indicator"></div>
+                <div class="w-2 h-2 rounded-full bg-white transition-opacity duration-300 opacity-50 indicator"></div>
+                <div class="w-2 h-2 rounded-full bg-white transition-opacity duration-300 opacity-50 indicator"></div>
+            </div>
+        </div>
+    </div>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
@@ -238,27 +317,42 @@ document.addEventListener("DOMContentLoaded", () => {
     showRegisterLink.addEventListener('click', switchToRegister);
     showLoginLink.addEventListener('click', switchToLogin);
 
-    // This block of PHP will execute if there was a POST request
     <?php if ($toast_message): ?>
         showToast('<?= addslashes($toast_message) ?>', '<?= $toast_type ?>');
         
-        // If registration was successful, switch to the login form
-        <?php if ($toast_type === 'success' && $_POST['action'] === 'register'): ?>
+        <?php if ($toast_type === 'success' && isset($_POST['action']) && $_POST['action'] === 'register'): ?>
             switchToLogin();
-            // Pre-fill the email field for convenience
             document.getElementById('login-email').value = '<?= htmlspecialchars($_POST['email']) ?>';
         <?php endif; ?>
 
-        // If registration failed, keep the register form visible
         <?php if ($toast_type === 'error' && isset($_POST['action']) && $_POST['action'] === 'register'): ?>
             switchToRegister();
         <?php endif; ?>
     <?php endif; ?>
 
-    // Check for URL param to show register form directly
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('form') === 'register') {
         switchToRegister();
+    }
+
+    const slides = document.querySelectorAll('.slide-image');
+    const texts = document.querySelectorAll('.slide-text');
+    const indicators = document.querySelectorAll('.indicator');
+    let currentSlide = 0;
+    const slideInterval = 5000;
+
+    if (slides.length > 1) {
+        setInterval(() => {
+            slides[currentSlide].classList.remove('active');
+            if(texts[currentSlide]) texts[currentSlide].classList.remove('active');
+            if(indicators[currentSlide]) indicators[currentSlide].classList.replace('opacity-100', 'opacity-50');
+
+            currentSlide = (currentSlide + 1) % slides.length;
+
+            slides[currentSlide].classList.add('active');
+            if(texts[currentSlide]) texts[currentSlide].classList.add('active');
+            if(indicators[currentSlide]) indicators[currentSlide].classList.replace('opacity-50', 'opacity-100');
+        }, slideInterval);
     }
 });
 </script>

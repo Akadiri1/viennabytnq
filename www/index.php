@@ -28,50 +28,123 @@ require APP_PATH."/models/model.php";
 // Track visits if not an admin and not an AJAX request (optional refinement)
 if (!isset($_SESSION['admin_logged_in'])) {
     try {
-        $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
-        $visit_url = $_SERVER['REQUEST_URI'];
+        // --- Improved IP Detection for Production (Cloudflare & Proxies) ---
+        if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            $ip_address = $_SERVER['HTTP_CF_CONNECTING_IP'];
+        } elseif (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ip_address = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        } else {
+            $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+        }
+        
+        $visit_url = $_SERVER['REQUEST_URI'] ?? '/';
         $referrer = $_SERVER['HTTP_REFERER'] ?? '';
         $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
         
-        // Simple optimization: Don't track static assets if they accidentally route here
-        // Simple optimization: Don't track static assets if they accidentally route here
-        if (!preg_match('/\.(jpg|jpeg|png|gif|css|js|ico|svg|woff|woff2)$/i', $visit_url)) {
+        // --- 0. Filters (AJAX, Bots, API Data, and Session Lock) ---
+        $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+        $is_api = preg_match('#^/(ajax|currency|cart-update|fetch-cart|process-order|submit-review)#i', $visit_url);
+        $is_scanner = preg_match('#(wp-admin|wp-login|wp-includes|\.git|\.env|setup-config|xmlrpc|phpmyadmin|\.well-known|admin/controller|sites/default|composer\.json)#i', $visit_url);
+        
+        // Strict IP blocklist for known common crawler ranges (Googlebot, Bingbot, etc.)
+        $known_bot_ips = [
+            '66.249.', // Googlebot
+            '66.102.', // Googlebot
+            '64.233.', // Googlebot
+            '157.55.', // Bingbot
+            '40.77.',  // Bingbot
+            '13.66.',  // Bingbot
+            '207.46.', // Bingbot
+            '17.58.',  // Applebot
+            '114.119.' // PetalBot
+        ];
+        $is_bot_ip = false;
+        foreach ($known_bot_ips as $bot_ip) {
+            if (strpos($ip_address, $bot_ip) === 0) {
+                $is_bot_ip = true;
+                break;
+            }
+        }
+
+        // Regex to catch common bots, spiders, and crawlers
+        $is_bot_user_agent = preg_match('/(bot|spider|crawl|slurp|facebookexternalhit|whatsapp|petalbot|datanyze|yandex|bingbot|applebot|googlebot|curl|python-requests|headless|wget|go-http-client|ips-agent|postman|insomnia|httpclient|lighthouse|pagespeed)/i', $user_agent);
+        
+        $is_bot = $is_bot_ip || $is_bot_user_agent;
+
+        if (trim($user_agent) === 'Mozilla/5.0' || empty(trim($user_agent))) {
+            $is_bot = true; // Generic scraper footprint
+        }
+
+        // Track only if it is NOT ajax, NOT an API route, NOT a bot, NOT a scanner 
+        // AND we haven't tracked them this session (or we want to track every unique page load, but we currently lock it per session)
+        if (!$is_ajax && (!$is_api || $visit_url === '/') && !$is_bot && !$is_scanner && !isset($_SESSION['visit_tracked'])) {
+
+            // Simple optimization: Don't track static assets if they accidentally route here
+            if (!preg_match('/\.(jpg|jpeg|png|gif|css|js|ico|svg|woff|woff2)$/i', $visit_url)) {
+                
+                // Set session lock so we don't track them again on next page click
+                $_SESSION['visit_tracked'] = true;
             
             // --- 1. Geolocation Logic ---
             $country = null;
             $region = null;
             $city = null;
-            $country_code = null; // New
+            $country_code = null;
+
+            // Helper function for production-ready geolocation
+            if (!function_exists('fetchGeoData')) {
+                function fetchGeoData($ip) {
+                    $url = "http://ip-api.com/json/{$ip}";
+                    $data = null;
+
+                    // Try cURL first (more robust)
+                    if (function_exists('curl_init')) {
+                        $ch = curl_init();
+                        curl_setopt($ch, CURLOPT_URL, $url);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                        $response = curl_exec($ch);
+                        curl_close($ch);
+                        if ($response) $data = json_decode($response, true);
+                    }
+
+                    // Fallback to file_get_contents
+                    if (!$data && ini_get('allow_url_fopen')) {
+                        $ctx = stream_context_create(['http' => ['timeout' => 3]]);
+                        $response = @file_get_contents($url, false, $ctx);
+                        if ($response) $data = json_decode($response, true);
+                    }
+
+                    return ($data && isset($data['status']) && $data['status'] === 'success') ? $data : null;
+                }
+            }
             
             try {
                 // Check if we already know this IP's location
-                $stmtLoc = $conn->prepare("SELECT country, region, city, country_code FROM site_visits WHERE ip_address = ? AND country IS NOT NULL LIMIT 1");
+                // Improved: Only select columns we know exist or handle failure gracefully
+                $stmtLoc = $conn->prepare("SELECT * FROM site_visits WHERE ip_address = ? AND country IS NOT NULL LIMIT 1");
                 $stmtLoc->execute([$ip_address]);
                 $existing = $stmtLoc->fetch(PDO::FETCH_ASSOC);
 
                 if ($existing) {
-                    $country = $existing['country'];
-                    $region = $existing['region'];
+                    $country = $existing['country'] ?? null;
+                    $region = $existing['region'] ?? null;
                     $city = $existing['city'] ?? null;
                     $country_code = $existing['country_code'] ?? null;
                 } else {
-                    // Fetch new (with timeout to prevent hanging)
+                    // Fetch new
                     if ($ip_address === '127.0.0.1' || $ip_address === '::1') {
                          $country = 'Localhost';
                          $region = 'Private Network';
                          $city = 'Local';
                          $country_code = 'LOC';
                     } else {
-                        $ctx = stream_context_create(['http' => ['timeout' => 2]]); 
-                        $json = @file_get_contents("http://ip-api.com/json/{$ip_address}", false, $ctx);
-                        if ($json) {
-                            $data = json_decode($json, true);
-                            if (($data['status'] ?? '') === 'success') {
-                                $country = $data['country'] ?? null;
-                                $region = $data['regionName'] ?? null;
-                                $city = $data['city'] ?? null;
-                                $country_code = $data['countryCode'] ?? null;
-                            }
+                        $data = fetchGeoData($ip_address);
+                        if ($data) {
+                            $country = $data['country'] ?? null;
+                            $region = $data['regionName'] ?? null;
+                            $city = $data['city'] ?? null;
+                            $country_code = $data['countryCode'] ?? null;
                         }
                     }
                 }
@@ -102,28 +175,33 @@ if (!isset($_SESSION['admin_logged_in'])) {
             }
 
             // --- 3. Save Visit ---
-            // Note: DB schema updated in dashboard.php to include new columns
+            $currentHost = $_SERVER['HTTP_HOST'] ?? 'Unknown';
             try {
-                $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region, city, device_type, os_name, country_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region, $city, $device_type, $os_name, $country_code]);
+                $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region, city, device_type, os_name, country_code, host) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region, $city, $device_type, $os_name, $country_code, $currentHost]);
             } catch (PDOException $e) {
-                // Fallback if column missing (e.g. race condition before migration run)
+                // Fallback if column missing
                 if (strpos($e->getMessage(), 'Unknown column') !== false) {
-                     // Try old inset
-                     try {
-                        $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region, city, device_type, os_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region, $city, $device_type, $os_name]);
-                     } catch(PDOException $e2) {
-                         // Really old fallback
-                        $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region]);
-                     }
+                    try {
+                        $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region, city, device_type, os_name, host) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region, $city, $device_type, $os_name, $currentHost]);
+                    } catch(PDOException $e2) {
+                        try {
+                            $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region, host) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region, $currentHost]);
+                        } catch(Exception $e3) {
+                             // Final legacy fallback
+                             $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region) VALUES (?, ?, ?, ?, ?, ?)");
+                             $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region]);
+                        }
+                    }
                 }
-            }
-        }
-    } catch (Exception $e) {
-        // Silently fail to avoid disrupting the user experience
-    }
+            } // Closes catch (PDOException $e)
+        } // Closes if (!preg_match static asset)
+    } // Closes if (!$is_ajax bot filter)
+} catch (Exception $e) {
+    // Silently fail to avoid disrupting the user experience
+}
 }
 #load Controllers(functions)
 require APP_PATH."/controllers/controller.php";

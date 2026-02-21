@@ -251,11 +251,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $uploadSingleImage = function ($fileKey, $currentImageKey) {
             $imagePath = $_POST[$currentImageKey] ?? '';
+            // If a file is successfully uploaded
             if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
-                if (!is_dir(UPLOAD_DIR_SERVER)) mkdir(UPLOAD_DIR_SERVER, 0775, true);
-                $filename = time() . '_' . preg_replace("/[^a-zA-Z0-9.]/", "", $_FILES[$fileKey]["name"]);
-                if (move_uploaded_file($_FILES[$fileKey]["tmp_name"], UPLOAD_DIR_SERVER . $filename)) {
-                    $imagePath = UPLOAD_PATH_WEB . $filename;
+                // Call the advanced compression function from controller.php
+                // It automatically shrinks to 1200px and converts to optimized progressive JPEG
+                $compressed_paths = compressImageOptimized($_FILES, $fileKey, UPLOAD_DIR_SERVER, 1200, 400);
+                
+                // If successful, extract the primary 'upload' path
+                if (isset($compressed_paths['upload'])) {
+                     // Get JUST the filename portion from the absolute server path
+                     $filename = basename($compressed_paths['upload']); 
+                     // Prepend the strict web path expected by the DB
+                     $imagePath = UPLOAD_PATH_WEB . ltrim($filename, '/');
                 }
             }
             return $imagePath;
@@ -338,9 +345,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             
             for ($i = 0; $i < $fileCount; $i++) {
                 if ($_FILES['gallery_images']['error'][$i] === UPLOAD_ERR_OK) {
-                    $fileName = time() . '_' . $i . '_' . preg_replace("/[^a-zA-Z0-9.]/", "", $_FILES['gallery_images']['name'][$i]);
-                    if (move_uploaded_file($_FILES['gallery_images']['tmp_name'][$i], UPLOAD_DIR_SERVER . $fileName)) {
-                        $stmtGallery->execute([$productId, UPLOAD_PATH_WEB . $fileName]);
+                    
+                    // The compressImageOptimized function expects a standard $_FILES array structure for a single file.
+                    // Since 'gallery_images' is an array of files, we create a temporary single-file structure for it to process.
+                    $temp_file_array = [
+                        'temp_gallery_item' => [
+                            'name'     => $_FILES['gallery_images']['name'][$i],
+                            'type'     => $_FILES['gallery_images']['type'][$i],
+                            'tmp_name' => $_FILES['gallery_images']['tmp_name'][$i],
+                            'error'    => $_FILES['gallery_images']['error'][$i],
+                            'size'     => $_FILES['gallery_images']['size'][$i]
+                        ]
+                    ];
+
+                    // Process through the optimizer
+                    $compressed = compressImageOptimized($temp_file_array, 'temp_gallery_item', UPLOAD_DIR_SERVER, 1200, 400);
+
+                    if (isset($compressed['upload'])) {
+                        $filename = basename($compressed['upload']);
+                        $final_web_path = UPLOAD_PATH_WEB . ltrim($filename, '/');
+                        $stmtGallery->execute([$productId, $final_web_path]);
                     }
                 }
             }
@@ -426,10 +450,31 @@ if ($page === 'dashboard') {
         $totalOrders = $stmt ? ($stmt->fetchColumn() ?? 0) : 0;
     } catch (Exception $e) { $totalOrders = 0; }
 
+    // --- MIGRATIONS & PERIOD LOGIC ---
+    try { $conn->exec("ALTER TABLE site_visits ADD COLUMN host VARCHAR(100) DEFAULT NULL"); } catch(Exception $e){}
+    try { $conn->exec("CREATE INDEX idx_site_visits_host ON site_visits(host)"); } catch(Exception $e){}
+    try { $conn->exec("ALTER TABLE site_visits ADD COLUMN country_code VARCHAR(5) DEFAULT NULL"); } catch(Exception $e){}
+    try { $conn->exec("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"); } catch(Exception $e){}
+    try { $conn->exec("ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active'"); } catch(Exception $e){}
+
+    $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+    $period = $_GET['period'] ?? 'today';
+    
+    // Period SQL Fragment
+    $periodSQL = "";
+    switch($period) {
+        case 'today': $periodSQL = "AND DATE(created_at) = CURDATE()"; break;
+        case 'week':  $periodSQL = "AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"; break;
+        case 'month': $periodSQL = "AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)"; break;
+        case 'year':  $periodSQL = "AND created_at >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)"; break;
+        case 'all':   $periodSQL = ""; break;
+    }
+
     // Safe Total Visits Fetch (Unique Visitors)
     try {
-        $stmt = $conn->query("SELECT COUNT(DISTINCT ip_address) FROM site_visits");
-        $totalVisits = $stmt ? ($stmt->fetchColumn() ?? 0) : 0;
+        $stmt = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE host = ?");
+        $stmt->execute([$currentHost]);
+        $totalVisits = $stmt->fetchColumn() ?: 0;
     } catch (Exception $e) { 
         // Table likely doesn't exist, try to create it
         try {
@@ -476,42 +521,53 @@ if ($page === 'dashboard') {
     ];
 
     try {
-        // 1. Unique Visits Chart (Last 7 Days)
-        $chartStmt = $conn->query("
+        // 1. Unique Visits Chart (Depends on Period)
+        $chartInterval = ($period === 'month') ? 29 : 6;
+        
+        $chartStmt = $conn->prepare("
             SELECT DATE(created_at) as date, COUNT(DISTINCT ip_address) as visits 
             FROM site_visits 
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
+            WHERE host = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY) 
             GROUP BY DATE(created_at) 
             ORDER BY date ASC
         ");
+        $chartStmt->execute([$currentHost, $chartInterval]);
         if ($chartStmt) {
-            $rawChartData = $chartStmt->fetchAll(PDO::FETCH_KEY_PAIR); // Date => Count
-            // Fill missing dates with 0
-            for ($i = 6; $i >= 0; $i--) {
+            $rawChartData = $chartStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            for ($i = $chartInterval; $i >= 0; $i--) {
                 $d = date('Y-m-d', strtotime("-$i days"));
                 $analyticsData['unique_visits_chart'][$d] = $rawChartData[$d] ?? 0;
             }
         }
 
         // 2. Device Stats
-        $deviceStmt = $conn->query("SELECT device_type, COUNT(*) as count FROM site_visits WHERE device_type IS NOT NULL GROUP BY device_type");
+        $deviceStmt = $conn->prepare("SELECT device_type, COUNT(DISTINCT ip_address) as count FROM site_visits WHERE host = ? $periodSQL AND device_type IS NOT NULL GROUP BY device_type");
+        $deviceStmt->execute([$currentHost]);
         if ($deviceStmt) $analyticsData['device_stats'] = $deviceStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // 3. OS Stats
-        $osStmt = $conn->query("SELECT os_name, COUNT(*) as count FROM site_visits WHERE os_name IS NOT NULL GROUP BY os_name");
+        $osStmt = $conn->prepare("SELECT os_name, COUNT(DISTINCT ip_address) as count FROM site_visits WHERE host = ? $periodSQL AND os_name IS NOT NULL GROUP BY os_name");
+        $osStmt->execute([$currentHost]);
         if ($osStmt) $analyticsData['os_stats'] = $osStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // 4. Top Cities
-        $cityStmt = $conn->query("SELECT city, country, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY visitors DESC LIMIT 5");
+        $cityStmt = $conn->prepare("SELECT city, country, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE host = ? $periodSQL AND city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY visitors DESC LIMIT 5");
+        $cityStmt->execute([$currentHost]);
         if ($cityStmt) $analyticsData['top_cities'] = $cityStmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // 5. Top Countries (Enhanced) - Fetch country_code too
-        $countryStmt = $conn->query("SELECT country, country_code, region, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE country IS NOT NULL GROUP BY country ORDER BY visitors DESC LIMIT 200");
+        // 5. Top Countries
+        $countryStmt = $conn->prepare("SELECT country, country_code, region, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE host = ? $periodSQL AND country IS NOT NULL GROUP BY country ORDER BY visitors DESC LIMIT 200");
+        $countryStmt->execute([$currentHost]);
         if ($countryStmt) $analyticsData['top_countries'] = $countryStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Total Visitors Percentage Change (Today vs Yesterday)
-        $visitsToday = $conn->query("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE DATE(created_at) = CURDATE()")->fetchColumn();
-        $visitsYesterday = $conn->query("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)")->fetchColumn();
+        $visitsToday = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE host = ? AND DATE(created_at) = CURDATE()");
+        $visitsToday->execute([$currentHost]);
+        $visitsToday = $visitsToday->fetchColumn();
+
+        $visitsYesterday = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE host = ? AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)");
+        $visitsYesterday->execute([$currentHost]);
+        $visitsYesterday = $visitsYesterday->fetchColumn();
         
         if ($visitsYesterday > 0) {
             $analyticsData['total_visitors_change'] = round((($visitsToday - $visitsYesterday) / $visitsYesterday) * 100, 2);
@@ -1162,11 +1218,11 @@ function getStatusBadge($status) {
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <h4 class="text-xl font-bold text-slate-800">Traffic Analytics</h4>
                                 <div class="bg-white rounded-lg p-1 flex items-center border shadow-sm">
-                                    <button class="px-3 py-1 text-xs font-bold bg-slate-800 text-white rounded shadow-sm">Today</button>
-                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">1 Week</button>
-                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">1 Month</button>
-                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">1 Year</button>
-                                    <button class="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-700">All Time</button>
+                                    <a href="?page=dashboard&period=today" class="px-3 py-1 text-xs font-bold <?= $period === 'today' ? 'bg-slate-800 text-white rounded shadow-sm' : 'text-slate-500 hover:text-slate-700' ?>">Today</a>
+                                    <a href="?page=dashboard&period=week" class="px-3 py-1 text-xs font-bold <?= $period === 'week' ? 'bg-slate-800 text-white rounded shadow-sm' : 'text-slate-500 hover:text-slate-700' ?>">1 Week</a>
+                                    <a href="?page=dashboard&period=month" class="px-3 py-1 text-xs font-bold <?= $period === 'month' ? 'bg-slate-800 text-white rounded shadow-sm' : 'text-slate-500 hover:text-slate-700' ?>">1 Month</a>
+                                    <a href="?page=dashboard&period=year" class="px-3 py-1 text-xs font-bold <?= $period === 'year' ? 'bg-slate-800 text-white rounded shadow-sm' : 'text-slate-500 hover:text-slate-700' ?>">1 Year</a>
+                                    <a href="?page=dashboard&period=all" class="px-3 py-1 text-xs font-bold <?= $period === 'all' ? 'bg-slate-800 text-white rounded shadow-sm' : 'text-slate-500 hover:text-slate-700' ?>">All Time</a>
                                 </div>
                             </div>
 
@@ -1176,7 +1232,7 @@ function getStatusBadge($status) {
                                 <div class="glass-card p-6 lg:col-span-2">
                                     <div class="flex justify-between items-center mb-6">
                                         <h4 class="font-bold text-slate-800">Unique Visitors</h4>
-                                        <div class="text-xs font-bold text-slate-400">Past 7 Days</div>
+                                        <div class="text-xs font-bold text-slate-400 capitalize"><?= $period === 'all' ? 'All Time' : "Past " . ($period === 'today' ? '24 Hours' : ($period === 'week' ? '7 Days' : ($period === 'month' ? '30 Days' : 'Year'))) ?></div>
                                     </div>
                                     <div class="h-80"><canvas id="uniqueVisitsChart"></canvas></div>
                                 </div>
@@ -1186,7 +1242,7 @@ function getStatusBadge($status) {
                                     <!-- Total Stats -->
                                     <div class="glass-card p-6 bg-slate-600 text-white relative overflow-hidden">
                                         <div class="relative z-10">
-                                            <p class="text-xs font-bold text-slate-100 uppercase tracking-widest">Total Visitors</p>
+                                            <p class="text-xs font-bold text-slate-100 uppercase tracking-widest"><?= $period === 'all' ? 'Total' : ucfirst($period) ?> Visitors</p>
                                             <h3 class="text-5xl font-black mt-3 text-white"><?= number_format($totalVisits) ?></h3>
                                             <div class="mt-4 flex items-center text-xs font-bold">
                                                 <span class="bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1">
@@ -3368,27 +3424,34 @@ function getStatusBadge($status) {
                      }
                  });
 
-                 new jsVectorMap({
+                  const totalVisits = <?= (int)$totalVisits ?>;
+
+                  new jsVectorMap({
                     selector: '#world-map',
                     map: 'world',
                     zoomButtons: true,
                     zoomOnScroll: false,
                     visualizeData: {
-                        scale: ['#e0e7ff', '#4f46e5'], // Indigo-50 to Indigo-600
+                        scale: ['#e0e7ff', '#10b981'], // Indigo-50 to Emerald-500
                         values: mapData
                     },
                     regionStyle: {
-                        initial: { fill: '#f1f5f9' },
-                        hover: { fill: '#6366f1' }
+                        initial: { fill: '#f8fafc' },
+                        hover: { fill: '#4f46e5' }
                     },
                     onRegionTooltipShow(event, tooltip, code) {
                         const count = mapData[code] || 0;
-                        if (count > 0) {
-                            tooltip.text(
-                                `<h5 class="font-bold text-sm">${tooltip.text()}</h5>
-                                 <p class="text-xs">Visitors: ${count}</p>`
-                            , true); // true = enable HTML
-                        }
+                        const percentage = totalVisits > 0 ? ((count / totalVisits) * 100).toFixed(1) : 0;
+                        
+                        tooltip.text(
+                            `<div class="p-2">
+                                <h5 class="font-black text-slate-800 text-sm mb-1">${tooltip.text()}</h5>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs font-bold text-slate-500">Visitors: <span class="text-slate-800">${count.toLocaleString()}</span></span>
+                                    <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">${percentage}%</span>
+                                </div>
+                            </div>`
+                        , true); 
                     }
                 });
              }

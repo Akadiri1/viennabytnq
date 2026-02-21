@@ -24,8 +24,8 @@
               'brand-red': '#EF4444',
             },
             fontFamily: {
-              'sans': ['Inter', 'ui-sans-serif', 'system-ui'],
-              'serif': ['Cormorant Garamond', 'serif'],
+              'sans': ['Lato', 'ui-sans-serif', 'system-ui'],
+              'serif': ['Playfair Display', 'serif'],
             }
           }
         }
@@ -34,7 +34,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
     <!-- Feather Icons -->
     <script src="https://unpkg.com/feather-icons"></script>
 </head>

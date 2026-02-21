@@ -8,6 +8,6 @@ $_SESSION = array();
 session_destroy();
 
 // Redirect to the auth page or home page
-header("Location: /auth");
+header("Location: /register");
 exit();
 ?>

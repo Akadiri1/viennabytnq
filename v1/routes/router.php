@@ -217,10 +217,11 @@ if (count($uri) > 2 && !empty($uri[2])) {
             include APP_PATH."/views/auth.php";
             break;
 
+        case'log-out':
+            include APP_PATH."/views/logout.php";
+            break;
+
         case 'logout':
-            // Check if it's user or admin logout?
-            // Original had two logout cases (line 314 view/logout, line 432 auth/logout).
-            // Usually auth/logout is better.
             include APP_PATH."/auth/logout.php";
             break;
 

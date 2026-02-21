@@ -59,19 +59,19 @@ foreach ($cart_items as $item) {
         theme: {
           extend: {
             colors: { "brand-bg": "#F9F6F2", "brand-text": "#1A1A1A", "brand-gray": "#6B7280" },
-            fontFamily: { sans: ["Inter", "sans-serif"], serif: ["Cormorant Garamond", "serif"] },
+            fontFamily: { sans: ["Lato", "sans-serif"], serif: ["Playfair Display", "serif"] },
           },
         },
       };
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/feather-icons"></script>
 </head>
 <body class="bg-brand-bg font-sans text-brand-text">
     
     <!-- Include your standard site header -->
     <header class="bg-white border-b border-gray-200/60 sticky top-0 z-40">
-        <div class="container mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center justify-between h-16"><a href="/home"><div class="text-2xl font-serif font-bold tracking-widest"><?= htmlspecialchars($site_name) ?></div></a><a href="/logout" class="text-sm font-medium text-brand-gray hover:text-brand-text">Logout</a></div></div>
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8"><div class="flex items-center justify-between h-16"><a href="/home"><div class="text-2xl font-serif font-bold tracking-widest"><?= htmlspecialchars($site_name) ?></div></a><a href="/log-out" class="text-sm font-medium text-brand-gray hover:text-brand-text">Logout</a></div></div>
     </header>
 
     <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
