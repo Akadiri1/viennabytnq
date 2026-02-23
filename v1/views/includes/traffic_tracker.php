@@ -10,12 +10,18 @@ try {
     $agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
     $host = $_SERVER['HTTP_HOST'] ?? 'Unknown';
 
-    // Strict IP blocklist for known common crawler ranges (Googlebot, Bingbot, etc.)
+    // Strict IP blocklist for known common crawler ranges
     $known_bot_ips = [
-        '66.249.', '66.102.', '64.233.', // Googlebot
-        '157.55.', '40.77.', '13.66.', '207.46.', // Bingbot
-        '17.58.',  // Applebot
-        '114.119.' // PetalBot
+        // Google
+        '66.249.', '66.102.', '64.233.', '72.14.', '209.85.', '216.239.', '34.', '35.', 
+        // Bing
+        '157.55.', '40.77.', '13.66.', '207.46.', '104.47.', '157.54.', '157.56.', '157.58.', '157.59.', '157.60.', '208.84.',
+        // Yandex (Russia)
+        '5.255.', '77.88.', '87.250.', '93.158.', '95.108.', '141.8.', '213.180.', '130.193.', '178.154.', '176.103.', '90.156.', '85.26.',
+        // Apple
+        '17.58.', '17.111.', '17.121.', '17.52.',
+        // PetalBot & Others
+        '114.119.', '119.13.', '220.181.', '123.186.', '37.200.', '149.143.' // Added specific IPs user reported
     ];
     $is_bot_ip = false;
     foreach ($known_bot_ips as $bot_ip) {
