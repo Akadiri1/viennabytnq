@@ -457,7 +457,17 @@ if ($page === 'dashboard') {
     try { $conn->exec("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"); } catch(Exception $e){}
     try { $conn->exec("ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active'"); } catch(Exception $e){}
 
-    $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+    $rawHost = $_SERVER['HTTP_HOST'] ?? '';
+    // Match both www and non-www versions so all visits are counted
+    $baseHost = preg_replace('/^www\./', '', $rawHost);
+    $currentHost = $rawHost; // for backward compat
+    $hostMatchSQL = "(host = ? OR host = ?)";
+    $hostParams = [$baseHost, 'www.' . $baseHost];
+    // Also match localhost variants for dev
+    if (in_array($rawHost, ['localhost', '127.0.0.1', 'viennabytnq.local'])) {
+        $hostMatchSQL = "(host = ? OR host = ? OR host = ? OR host = ?)";
+        $hostParams = ['localhost', '127.0.0.1', 'viennabytnq.local', $rawHost];
+    }
     $period = $_GET['period'] ?? 'today';
     
     // Period SQL Fragment
@@ -472,8 +482,8 @@ if ($page === 'dashboard') {
 
     // Safe Total Visits Fetch (Unique Visitors)
     try {
-        $stmt = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE host = ?");
-        $stmt->execute([$currentHost]);
+        $stmt = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE $hostMatchSQL");
+        $stmt->execute($hostParams);
         $totalVisits = $stmt->fetchColumn() ?: 0;
     } catch (Exception $e) { 
         // Table likely doesn't exist, try to create it
@@ -525,13 +535,13 @@ if ($page === 'dashboard') {
         $chartInterval = ($period === 'month') ? 29 : 6;
         
         $chartStmt = $conn->prepare("
-            SELECT DATE(created_at) as date, COUNT(DISTINCT ip_address) as visits 
-            FROM site_visits 
-            WHERE host = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY) 
-            GROUP BY DATE(created_at) 
+            SELECT DATE(created_at) as date, COUNT(DISTINCT ip_address) as visits
+            FROM site_visits
+            WHERE $hostMatchSQL AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+            GROUP BY DATE(created_at)
             ORDER BY date ASC
         ");
-        $chartStmt->execute([$currentHost, $chartInterval]);
+        $chartStmt->execute(array_merge($hostParams, [$chartInterval]));
         if ($chartStmt) {
             $rawChartData = $chartStmt->fetchAll(PDO::FETCH_KEY_PAIR);
             for ($i = $chartInterval; $i >= 0; $i--) {
@@ -541,32 +551,32 @@ if ($page === 'dashboard') {
         }
 
         // 2. Device Stats
-        $deviceStmt = $conn->prepare("SELECT device_type, COUNT(DISTINCT ip_address) as count FROM site_visits WHERE host = ? $periodSQL AND device_type IS NOT NULL GROUP BY device_type");
-        $deviceStmt->execute([$currentHost]);
+        $deviceStmt = $conn->prepare("SELECT device_type, COUNT(DISTINCT ip_address) as count FROM site_visits WHERE $hostMatchSQL $periodSQL AND device_type IS NOT NULL GROUP BY device_type");
+        $deviceStmt->execute($hostParams);
         if ($deviceStmt) $analyticsData['device_stats'] = $deviceStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // 3. OS Stats
-        $osStmt = $conn->prepare("SELECT os_name, COUNT(DISTINCT ip_address) as count FROM site_visits WHERE host = ? $periodSQL AND os_name IS NOT NULL GROUP BY os_name");
-        $osStmt->execute([$currentHost]);
+        $osStmt = $conn->prepare("SELECT os_name, COUNT(DISTINCT ip_address) as count FROM site_visits WHERE $hostMatchSQL $periodSQL AND os_name IS NOT NULL GROUP BY os_name");
+        $osStmt->execute($hostParams);
         if ($osStmt) $analyticsData['os_stats'] = $osStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // 4. Top Cities
-        $cityStmt = $conn->prepare("SELECT city, country, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE host = ? $periodSQL AND city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY visitors DESC LIMIT 5");
-        $cityStmt->execute([$currentHost]);
+        $cityStmt = $conn->prepare("SELECT city, country, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE $hostMatchSQL $periodSQL AND city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY visitors DESC LIMIT 5");
+        $cityStmt->execute($hostParams);
         if ($cityStmt) $analyticsData['top_cities'] = $cityStmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         // 5. Top Countries
-        $countryStmt = $conn->prepare("SELECT country, country_code, region, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE host = ? $periodSQL AND country IS NOT NULL GROUP BY country ORDER BY visitors DESC LIMIT 200");
-        $countryStmt->execute([$currentHost]);
+        $countryStmt = $conn->prepare("SELECT country, country_code, region, COUNT(DISTINCT ip_address) as visitors FROM site_visits WHERE $hostMatchSQL $periodSQL AND country IS NOT NULL GROUP BY country ORDER BY visitors DESC LIMIT 200");
+        $countryStmt->execute($hostParams);
         if ($countryStmt) $analyticsData['top_countries'] = $countryStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Total Visitors Percentage Change (Today vs Yesterday)
-        $visitsToday = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE host = ? AND DATE(created_at) = CURDATE()");
-        $visitsToday->execute([$currentHost]);
+        $visitsToday = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE $hostMatchSQL AND DATE(created_at) = CURDATE()");
+        $visitsToday->execute($hostParams);
         $visitsToday = $visitsToday->fetchColumn();
 
-        $visitsYesterday = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE host = ? AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)");
-        $visitsYesterday->execute([$currentHost]);
+        $visitsYesterday = $conn->prepare("SELECT COUNT(DISTINCT ip_address) FROM site_visits WHERE $hostMatchSQL AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)");
+        $visitsYesterday->execute($hostParams);
         $visitsYesterday = $visitsYesterday->fetchColumn();
         
         if ($visitsYesterday > 0) {
@@ -979,17 +989,22 @@ function getStatusBadge($status) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="shortcut icon" type="image/png" href="<?=$logo_directory?>" />
     <title>Admin Dashboard | <?= $site_name ?? 'VIENNA' ?></title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS (pinned version for cross-browser reliability) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
     <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- JSVectorMap CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap/dist/css/jsvectormap.min.css" />
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap@1.6.0/dist/css/jsvectormap.min.css" />
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <!-- Tailwind fallback for browsers that block the CDN script -->
+    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css"></noscript>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; }
         .glass-sidebar { background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); }
@@ -3395,33 +3410,31 @@ function getStatusBadge($status) {
     <?php endif; ?>
 
     <!-- Map Libs -->
-    <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/js/jsvectormap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/maps/world.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.6.0/dist/js/jsvectormap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.6.0/dist/maps/world.js"></script>
 
     <script>
         // --- MAP IMPLEMENTATION ---
         document.addEventListener('DOMContentLoaded', () => {
              const mapEl = document.getElementById('world-map');
-             if (mapEl) {
-                 // Prepare Data
+             if (mapEl && typeof jsVectorMap !== 'undefined') {
+                 try {
                  const dbData = <?= json_encode($analyticsData['top_countries']) ?>;
                  const mapData = {};
-                 
-                 // Fallback Mapping for existing data w/o country_code
                  const nameToCode = {
-                    'Nigeria': 'NG', 'United States': 'US', 'United Kingdom': 'GB', 'Canada': 'CA', 'Ghana': 'GH', 
+                    'Nigeria': 'NG', 'United States': 'US', 'United Kingdom': 'GB', 'Canada': 'CA', 'Ghana': 'GH',
                     'Germany': 'DE', 'France': 'FR', 'Australia': 'AU', 'India': 'IN', 'China': 'CN', 'Brazil': 'BR',
-                    'South Africa': 'ZA', 'Kenya': 'KE', 'Russia': 'RU', 'Japan': 'JP', 'Italy': 'IT', 'Spain': 'ES'
+                    'South Africa': 'ZA', 'Kenya': 'KE', 'Russia': 'RU', 'Japan': 'JP', 'Italy': 'IT', 'Spain': 'ES',
+                    'Mexico': 'MX', 'Egypt': 'EG', 'Saudi Arabia': 'SA', 'UAE': 'AE', 'Turkey': 'TR', 'Netherlands': 'NL',
+                    'Sweden': 'SE', 'Switzerland': 'CH', 'Poland': 'PL', 'Belgium': 'BE', 'Austria': 'AT', 'Ireland': 'IE',
+                    'New Zealand': 'NZ', 'Singapore': 'SG', 'Malaysia': 'MY', 'Thailand': 'TH', 'Indonesia': 'ID',
+                    'Philippines': 'PH', 'Pakistan': 'PK', 'Bangladesh': 'BD', 'South Korea': 'KR', 'Localhost': null
                  };
 
                  dbData.forEach(item => {
                      let code = item.country_code;
-                     if (!code && item.country) {
-                         code = nameToCode[item.country] || null;
-                     }
-                     if (code) {
-                         mapData[code] = (mapData[code] || 0) + item.visitors;
-                     }
+                     if (!code && item.country) code = nameToCode[item.country] || null;
+                     if (code) mapData[code] = (mapData[code] || 0) + parseInt(item.visitors);
                  });
 
                   const totalVisits = <?= (int)$totalVisits ?>;
@@ -3432,7 +3445,7 @@ function getStatusBadge($status) {
                     zoomButtons: true,
                     zoomOnScroll: false,
                     visualizeData: {
-                        scale: ['#e0e7ff', '#10b981'], // Indigo-50 to Emerald-500
+                        scale: ['#e0e7ff', '#10b981'],
                         values: mapData
                     },
                     regionStyle: {
@@ -3442,18 +3455,20 @@ function getStatusBadge($status) {
                     onRegionTooltipShow(event, tooltip, code) {
                         const count = mapData[code] || 0;
                         const percentage = totalVisits > 0 ? ((count / totalVisits) * 100).toFixed(1) : 0;
-                        
                         tooltip.text(
-                            `<div class="p-2">
-                                <h5 class="font-black text-slate-800 text-sm mb-1">${tooltip.text()}</h5>
-                                <div class="flex items-center gap-3">
-                                    <span class="text-xs font-bold text-slate-500">Visitors: <span class="text-slate-800">${count.toLocaleString()}</span></span>
-                                    <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">${percentage}%</span>
-                                </div>
+                            `<div style="padding:8px;font-family:inherit;">
+                                <strong style="font-size:13px;">${tooltip.text()}</strong><br>
+                                <span style="font-size:11px;">Visitors: ${count.toLocaleString()} (${percentage}%)</span>
                             </div>`
-                        , true); 
+                        , true);
                     }
                 });
+                 } catch(e) {
+                    console.error('Map init error:', e);
+                    mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:14px;">Map could not load</div>';
+                 }
+             } else if (mapEl) {
+                 mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:14px;">Map library not available</div>';
              }
         });
     </script>

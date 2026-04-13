@@ -18,40 +18,70 @@ session_start();
 #Define App Path
 
 define("D_PATH", dirname(dirname(__FILE__)));
-CONST APP_PATH = D_PATH."/v1";
+
+// --- VERSION SWITCHING ---
+// Handle /switch/v1 and /switch/v2 routes
+$request_path = $_SERVER['REQUEST_URI'] ?? '/';
+if (preg_match('#^/switch/(v[12])$#', $request_path, $ver_match)) {
+    $version = $ver_match[1];
+    setcookie('app_version', $version, [
+        'expires' => time() + (86400 * 365),
+        'path' => '/',
+        'secure' => isset($_SERVER['HTTPS']),
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+    // Redirect to home after switching
+    header('Location: /home');
+    exit;
+}
+
+// Determine active version from cookie (default: v2)
+$app_version = isset($_COOKIE['app_version']) && $_COOKIE['app_version'] === 'v1' ? 'v1' : 'v2';
+define("APP_VERSION", $app_version);
+define("APP_PATH", D_PATH."/".$app_version);
+
 #load config
 include D_PATH."/.env/config.php";
 #load database
 require APP_PATH."/models/model.php";
 
 // --- VISITOR TRACKING ---
-// Track visits if not an admin and not an AJAX request (optional refinement)
+// Track visits if not an admin and not an AJAX request
 if (!isset($_SESSION['admin_logged_in'])) {
     try {
         // --- Improved IP Detection for Production (Cloudflare & Proxies) ---
-        // SECURITY: always use REMOTE_ADDR first if CF isn't strictly verified, but for this simple setup:
         $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
         
         // If coming through Cloudflare, trust CF-Connecting-IP
         if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
             $ip_address = $_SERVER['HTTP_CF_CONNECTING_IP'];
         } 
-        // DO NOT trust X-Forwarded-For if not behind a known proxy, as it can be easily spoofed by malicious bots
-        // to pretend they are real users or to bypass IP bans.
 
         $visit_url = $_SERVER['REQUEST_URI'] ?? '/';
         $referrer = $_SERVER['HTTP_REFERER'] ?? '';
         $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $currentHost = $_SERVER['HTTP_HOST'] ?? 'Unknown';
         
-        // --- 0. Filters (AJAX, Bots, API Data, and Session Lock) ---
+        // --- 0. Filters (AJAX, Bots, API Data, Subdomain, and Session Lock) ---
         $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
         $is_api = preg_match('#^/(ajax|currency|cart-update|fetch-cart|process-order|submit-review)#i', $visit_url);
         $is_scanner = preg_match('#(wp-admin|wp-login|wp-includes|\.git|\.env|setup-config|xmlrpc|phpmyadmin|\.well-known|admin/controller|sites/default|composer\.json)#i', $visit_url);
         
-        // Strict IP blocklist for known common crawler ranges
+        // Block non-human URL requests (robots.txt, sitemap, etc.)
+        $is_bot_url = preg_match('#^/(robots\.txt|sitemap\.xml|favicon\.ico|\.well-known)#i', $visit_url);
+
+        // Exclude admin/internal pages — these are not customer visits
+        $is_admin_page = preg_match('#^/(dashboard|admin_login|admin-setup|manage|seed_admin|debug)#i', $visit_url);
+
+        // Only track the main domain — exclude subdomains like mail.viennabytnq.com
+        $allowed_hosts = ['viennabytnq.com', 'www.viennabytnq.com', 'localhost', '127.0.0.1', 'viennabytnq.local'];
+        $is_subdomain = !in_array($currentHost, $allowed_hosts);
+
+        // Strict IP blocklist for known common crawler/bot/cloud ranges
         $known_bot_ips = [
             // Google
-            '66.249.', '66.102.', '64.233.', '72.14.', '209.85.', '216.239.', '34.', '35.', 
+            '66.249.', '66.102.', '64.233.', '72.14.', '209.85.', '216.239.', 
             // Bing
             '157.55.', '40.77.', '13.66.', '207.46.', '104.47.', '157.54.', '157.56.', '157.58.', '157.59.', '157.60.', '208.84.',
             // Yandex (Russia)
@@ -59,7 +89,17 @@ if (!isset($_SESSION['admin_logged_in'])) {
             // Apple
             '17.58.', '17.111.', '17.121.', '17.52.',
             // PetalBot & Others
-            '114.119.', '119.13.', '220.181.', '123.186.', '37.200.', '149.143.' // Added specific IPs user reported
+            '114.119.', '119.13.', '220.181.', '123.186.', '37.200.', '149.143.',
+            // Facebook / Meta crawlers (data centers — not real users)
+            '31.13.', '66.220.', '173.252.', '69.63.', '69.171.', '74.119.76.',
+            // DigitalOcean (bot hosting)
+            '138.197.', '142.93.', '45.55.', '104.131.', '159.89.', '167.99.', '165.227.', '134.209.', '64.225.',
+            // AWS common bot ranges
+            '107.22.', '54.236.', '54.173.', '54.162.',
+            // Russian bot/scanner ranges
+            '85.143.', '45.138.', '45.147.',
+            // Known monitoring/scanner services
+            '205.169.',
         ];
         $is_bot_ip = false;
         foreach ($known_bot_ips as $bot_ip) {
@@ -69,8 +109,8 @@ if (!isset($_SESSION['admin_logged_in'])) {
             }
         }
 
-        // Regex to catch common bots, spiders, and crawlers
-        $is_bot_user_agent = preg_match('/(bot|spider|crawl|slurp|facebookexternalhit|whatsapp|petalbot|datanyze|yandex|bingbot|applebot|googlebot|curl|python-requests|headless|wget|go-http-client|ips-agent|postman|insomnia|httpclient|lighthouse|pagespeed)/i', $user_agent);
+        // Regex to catch common bots, spiders, crawlers, and AI scrapers
+        $is_bot_user_agent = preg_match('/(bot|spider|crawl|slurp|facebookexternalhit|facebook|whatsapp|petalbot|datanyze|yandex|bingbot|applebot|googlebot|curl|python-requests|headless|wget|go-http-client|ips-agent|postman|insomnia|httpclient|lighthouse|pagespeed|semrush|ahrefs|mj12bot|dotbot|screaming.frog|bytespider|gptbot|claudebot|ccbot|amazonbot|chatgpt|barkrowler|dataforseo|zoominfobot|censys|masscan|zgrab)/i', $user_agent);
         
         $is_bot = $is_bot_ip || $is_bot_user_agent;
 
@@ -78,13 +118,25 @@ if (!isset($_SESSION['admin_logged_in'])) {
             $is_bot = true; // Generic scraper footprint
         }
 
-        // Track only if it is NOT ajax, NOT an API route, NOT a bot, NOT a scanner 
-        // AND we haven't tracked them this session (or we want to track every unique page load, but we currently lock it per session)
-        if (!$is_ajax && (!$is_api || $visit_url === '/') && !$is_bot && !$is_scanner && !isset($_SESSION['visit_tracked'])) {
+        // Track only if it passes ALL filters
+        if (!$is_ajax && (!$is_api || $visit_url === '/') && !$is_bot && !$is_scanner && !$is_bot_url && !$is_admin_page && !$is_subdomain && !isset($_SESSION['visit_tracked'])) {
 
             // Simple optimization: Don't track static assets if they accidentally route here
             if (!preg_match('/\.(jpg|jpeg|png|gif|css|js|ico|svg|woff|woff2)$/i', $visit_url)) {
-                
+
+                // --- Duplicate visit protection ---
+                // Use IP + user_agent fingerprint so different people on same WiFi are counted
+                // but the same person refreshing multiple times is not
+                try {
+                    $visitor_fingerprint = md5($ip_address . '|' . $user_agent);
+                    $stmtDup = $conn->prepare("SELECT id FROM site_visits WHERE ip_address = ? AND user_agent = ? AND DATE(created_at) = CURDATE() LIMIT 1");
+                    $stmtDup->execute([$ip_address, $user_agent]);
+                    if ($stmtDup->fetch()) {
+                        $_SESSION['visit_tracked'] = true;
+                        goto end_tracking; // Skip — already recorded today
+                    }
+                } catch (Exception $e) { /* Column may not exist yet, continue */ }
+
                 // Set session lock so we don't track them again on next page click
                 $_SESSION['visit_tracked'] = true;
             
@@ -124,7 +176,6 @@ if (!isset($_SESSION['admin_logged_in'])) {
             
             try {
                 // Check if we already know this IP's location
-                // Improved: Only select columns we know exist or handle failure gracefully
                 $stmtLoc = $conn->prepare("SELECT * FROM site_visits WHERE ip_address = ? AND country IS NOT NULL LIMIT 1");
                 $stmtLoc->execute([$ip_address]);
                 $existing = $stmtLoc->fetch(PDO::FETCH_ASSOC);
@@ -153,32 +204,44 @@ if (!isset($_SESSION['admin_logged_in'])) {
                 }
             } catch (Exception $e) { /* Ignore Geo errors */ }
 
-            // --- 2. Device & OS Parsing ---
+            // --- 2. Device & OS Parsing (FIXED ORDER) ---
             $device_type = 'Desktop'; // Default
             $os_name = 'Unknown';
 
-            // Detect Device
-            if (preg_match('/(tablet|ipad|playbook)|(android(?!.*(mobi|opera mini)))/i', $user_agent)) {
+            // Detect Device — check specific patterns first, then fall back to Desktop
+            if (preg_match('/iphone/i', $user_agent)) {
+                $device_type = 'Mobile';
+            } elseif (preg_match('/ipad/i', $user_agent)) {
                 $device_type = 'Tablet';
-            } elseif (preg_match('/(up.browser|up.link|mmp|symbian|smartphone|midp|wap|phone|android|iemobile)/i', $user_agent)) {
+            } elseif (preg_match('/(tablet|playbook|kindle|silk)|(android(?!.*(mobi|phone)))/i', $user_agent)) {
+                $device_type = 'Tablet';
+            } elseif (preg_match('/(mobi|phone|ipod|android|iemobile|up\.browser|up\.link|mmp|symbian|smartphone|midp|wap)/i', $user_agent)) {
                 $device_type = 'Mobile';
             }
+            // Instagram/Facebook in-app browsers on phones
+            if (preg_match('/instagram|FBAV|FBAN/i', $user_agent) && !preg_match('/ipad|tablet/i', $user_agent)) {
+                if (preg_match('/iphone|android.*mobi|android.*mobile/i', $user_agent)) {
+                    $device_type = 'Mobile';
+                }
+            }
 
-            // Detect OS
-            if (preg_match('/windows|win32/i', $user_agent)) {
+            // Detect OS — IMPORTANT: check specific (iOS, Android) BEFORE generic (Mac OS, Linux)
+            // because iOS UAs contain "like Mac OS X" and Android UAs contain "Linux"
+            if (preg_match('/iphone|ipad|ipod/i', $user_agent)) {
+                $os_name = 'iOS';
+            } elseif (preg_match('/android/i', $user_agent)) {
+                $os_name = 'Android';
+            } elseif (preg_match('/windows|win32/i', $user_agent)) {
                 $os_name = 'Windows';
             } elseif (preg_match('/macintosh|mac os x/i', $user_agent)) {
                 $os_name = 'Mac OS';
             } elseif (preg_match('/linux/i', $user_agent)) {
                 $os_name = 'Linux';
-            } elseif (preg_match('/iphone|ipad|ipod/i', $user_agent)) {
-                $os_name = 'iOS';
-            } elseif (preg_match('/android/i', $user_agent)) {
-                $os_name = 'Android';
+            } elseif (preg_match('/cros/i', $user_agent)) {
+                $os_name = 'Chrome OS';
             }
 
             // --- 3. Save Visit ---
-            $currentHost = $_SERVER['HTTP_HOST'] ?? 'Unknown';
             try {
                 $stmt = $conn->prepare("INSERT INTO site_visits (ip_address, visit_url, referrer, user_agent, country, region, city, device_type, os_name, country_code, host) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$ip_address, $visit_url, $referrer, $user_agent, $country, $region, $city, $device_type, $os_name, $country_code, $currentHost]);
@@ -199,13 +262,17 @@ if (!isset($_SESSION['admin_logged_in'])) {
                         }
                     }
                 }
-            } // Closes catch (PDOException $e)
+            }
         } // Closes if (!preg_match static asset)
-    } // Closes if (!$is_ajax bot filter)
+    } // Closes if (filters pass)
+
+    end_tracking: // Jump target for duplicate protection skip
+
 } catch (Exception $e) {
     // Silently fail to avoid disrupting the user experience
 }
 }
+
 #load Controllers(functions)
 require APP_PATH."/controllers/controller.php";
 
